@@ -1,0 +1,400 @@
+/*
+ * Estilos específicos do Editor de ROI.
+ *
+ * Bootstrap continua responsável pela maior parte
+ * da estrutura visual.
+ */
+
+
+/* ========================================================= */
+/* ESTRUTURA GERAL                                           */
+/* ========================================================= */
+
+html,
+body {
+    min-height: 100%;
+}
+
+
+body {
+    min-height: 100vh;
+}
+
+
+/* ========================================================= */
+/* CARD DO EDITOR                                            */
+/* ========================================================= */
+
+.editor-card {
+    min-height: 650px;
+
+    display: flex;
+
+    flex-direction: column;
+}
+
+
+.editor-card .card-body {
+    flex: 1;
+}
+
+
+/* ========================================================= */
+/* ÁREA DO CANVAS                                            */
+/* ========================================================= */
+
+.canvas-panel {
+    min-height: 560px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    overflow: auto;
+
+    padding: 1.5rem;
+
+    background: #212529;
+
+    border-radius: 0 0 0.375rem 0.375rem;
+}
+
+
+/*
+ * Estado vazio.
+ */
+
+.empty-canvas {
+    color: rgba(255, 255, 255, 0.55);
+
+    text-align: center;
+
+    padding: 3rem;
+}
+
+
+/*
+ * Wrapper do canvas.
+ */
+
+#canvasWrap {
+    width: 100%;
+
+    height: 100%;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+}
+
+
+/*
+ * Canvas.
+ *
+ * O tamanho interno continua sendo o tamanho
+ * real da imagem.
+ */
+
+#canvas {
+    display: block;
+
+    max-width: 100%;
+
+    max-height: 100%;
+
+    width: auto;
+
+    height: auto;
+
+    background: #212529;
+
+    border-radius: 0.375rem;
+
+    cursor: crosshair;
+}
+
+
+/* Cursor sobre ponto */
+
+#canvas.hover-point {
+    cursor: grab;
+}
+
+
+/* Ponto sendo arrastado */
+
+#canvas.dragging-point {
+    cursor: grabbing;
+}
+
+
+/* ========================================================= */
+/* CONTROLES                                                 */
+/* ========================================================= */
+
+.region-list {
+    max-height: 340px;
+
+    overflow-y: auto;
+}
+
+
+.region-item {
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 0.75rem;
+}
+
+
+.region-item.editing {
+    background: rgba(13, 110, 253, 0.08);
+
+    border-left: 3px solid var(--bs-primary);
+}
+
+
+.region-name {
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+    white-space: nowrap;
+}
+
+
+.region-name-input {
+    padding: 0.1rem 0.35rem;
+
+    font-size: 0.875rem;
+}
+
+
+.region-actions {
+    display: flex;
+
+    gap: 0.25rem;
+
+    flex-shrink: 0;
+}
+
+
+/* ========================================================= */
+/* LISTA VAZIA                                               */
+/* ========================================================= */
+
+.region-empty {
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+
+/* ========================================================= */
+/* CONFIGURAÇÕES                                             */
+/* ========================================================= */
+
+.settings-section {
+    padding: 0;
+}
+
+
+.settings-title {
+    display: flex;
+
+    align-items: center;
+
+    margin-bottom: 1.25rem;
+
+    font-weight: 600;
+
+    color: var(--bs-emphasis-color);
+}
+
+
+/* ========================================================= */
+/* STATUS DA API                                             */
+/* ========================================================= */
+
+#apiStatus {
+    min-width: 42px;
+
+    text-align: center;
+}
+
+
+/*
+ * Indicadores que podem ser usados pelo JS.
+ */
+
+#apiUrlBadge i,
+#roiApiUrlBadge i {
+    font-size: 0.55rem;
+}
+
+
+#apiUrlBadge.online i,
+#roiApiUrlBadge.online i {
+    color: var(--bs-success) !important;
+}
+
+
+#apiUrlBadge.offline i,
+#roiApiUrlBadge.offline i {
+    color: var(--bs-danger) !important;
+}
+
+
+/* ========================================================= */
+/* INFORMAÇÕES                                                */
+/* ========================================================= */
+
+#pointCounter {
+    font-variant-numeric: tabular-nums;
+}
+
+
+#cursorCoords {
+    font-variant-numeric: tabular-nums;
+
+    min-width: 6.5rem;
+
+    text-align: right;
+}
+
+
+#detectionBadge {
+    font-size: 0.7rem;
+
+    font-weight: 600;
+
+    text-transform: uppercase;
+
+    letter-spacing: 0.02em;
+}
+
+
+/* ========================================================= */
+/* MODAL                                                     */
+/* ========================================================= */
+
+#settingsModal .modal-content {
+    border: 0;
+
+    border-radius: 0.75rem;
+
+    overflow: hidden;
+}
+
+
+#settingsModal .modal-header {
+    padding: 1.25rem 1.5rem;
+}
+
+
+#settingsModal .modal-body {
+    padding: 1.5rem;
+}
+
+
+#settingsModal .modal-footer {
+    padding: 1rem 1.5rem;
+}
+
+
+/* ========================================================= */
+/* RESPONSIVIDADE                                            */
+/* ========================================================= */
+
+@media (min-width: 1200px) {
+
+    .editor-card {
+        min-height: 720px;
+    }
+
+
+    .canvas-panel {
+        min-height: 620px;
+    }
+
+}
+
+
+@media (max-width: 1199.98px) {
+
+    .editor-card {
+        min-height: 600px;
+    }
+
+
+    .canvas-panel {
+        min-height: 500px;
+    }
+
+}
+
+
+@media (max-width: 767.98px) {
+
+    .editor-card {
+        min-height: auto;
+    }
+
+
+    .canvas-panel {
+        min-height: 400px;
+
+        padding: 1rem;
+    }
+
+
+    .card-header {
+        padding-left: 1rem !important;
+
+        padding-right: 1rem !important;
+    }
+
+
+    .editor-card .card-header>div {
+        align-items: flex-start;
+
+        flex-direction: column;
+    }
+
+
+    .editor-card .card-header .btn {
+        width: 100%;
+    }
+
+
+    .region-list {
+        max-height: 280px;
+    }
+
+}
+
+
+@media (max-width: 575.98px) {
+
+    .canvas-panel {
+        min-height: 300px;
+
+        padding: 0.75rem;
+    }
+
+
+    .empty-canvas {
+        padding: 1.5rem;
+    }
+
+
+    .settings-title {
+        margin-bottom: 1rem;
+    }
+
+}

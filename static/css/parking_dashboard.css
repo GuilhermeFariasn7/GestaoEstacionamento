@@ -1,0 +1,519 @@
+/*
+ * ================================================================
+ * SMART PARKING — DASHBOARD
+ * ================================================================
+ */
+
+
+/*
+ * ------------------------------------------------
+ * Estrutura geral
+ * ------------------------------------------------
+ */
+
+html,
+body {
+    min-height: 100%;
+}
+
+
+body {
+    min-height: 100vh;
+}
+
+
+.dashboard-main {
+    min-height: calc(100vh - 56px);
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+
+    display: flex;
+    flex-direction: column;
+}
+
+
+/*
+ * ------------------------------------------------
+ * Barra superior do monitoramento
+ * ------------------------------------------------
+ */
+
+.dashboard-toolbar {
+    display: flex;
+
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 1rem;
+
+    margin-bottom: 1.25rem;
+
+    padding: 3px;
+    background-color: oklch(0.17 0.024 258);
+    border-radius: 5px;
+}
+
+
+.monitoring-info {
+    display: flex;
+    text-align: center;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+
+    gap: 0.75rem;
+}
+
+
+.monitoring-icon {
+    width: 44px;
+    height: 44px;
+
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 0.75rem;
+
+    background: rgba(13, 110, 253, 0.1);
+
+    color: var(--bs-primary);
+
+    font-size: 1.35rem;
+}
+
+
+#envLabel {
+    margin-left: 0.15rem;
+}
+
+
+/*
+ * ------------------------------------------------
+ * Indicadores
+ * ------------------------------------------------
+ */
+
+.dashboard-stats {
+    margin-bottom: 1.25rem;
+}
+
+
+.metric-card {
+    border-radius: 0.75rem;
+
+    transition:
+        transform 0.15s ease,
+        box-shadow 0.15s ease;
+}
+
+
+.metric-card:hover {
+    transform: translateY(-2px);
+}
+
+
+.metric-card .card-body {
+    min-height: 125px;
+
+    display: flex;
+
+    flex-direction: column;
+
+    justify-content: center;
+
+    padding: 1.25rem;
+}
+
+
+.metric-label {
+    color: var(--bs-secondary-color);
+
+    font-size: 0.875rem;
+
+    margin-bottom: 0.25rem;
+}
+
+
+/*
+ * ------------------------------------------------
+ * Card principal
+ * ------------------------------------------------
+ */
+
+.parking-card {
+    flex: 1;
+
+    min-height: 0;
+
+    border-radius: 0.75rem;
+
+    overflow: hidden;
+
+    display: flex;
+
+    flex-direction: column;
+}
+
+
+.parking-card .card-header {
+    padding: 1rem 1.25rem;
+
+    flex-shrink: 0;
+}
+
+
+.parking-card-body {
+    flex: 1;
+
+    min-height: 420px;
+
+    position: relative;
+
+    padding: 1.25rem;
+
+    overflow: auto;
+}
+
+
+/*
+ * ------------------------------------------------
+ * Lista de vagas
+ * ------------------------------------------------
+ */
+
+#grid {
+    width: 100%;
+}
+
+
+.parking-space {
+    min-height: 150px;
+
+    border-radius: 0.65rem;
+
+    transition:
+        transform 0.15s ease,
+        box-shadow 0.15s ease;
+}
+
+
+.parking-space:hover {
+    transform: translateY(-2px);
+
+    box-shadow:
+        0 0.35rem 0.9rem rgba(0, 0, 0, 0.1) !important;
+}
+
+
+.parking-space.free {
+    border-left: 4px solid var(--bs-success);
+}
+
+
+.parking-space.occupied {
+    border-left: 4px solid var(--bs-danger);
+}
+
+
+.parking-space .card-body {
+    padding: 1.25rem 0.75rem;
+}
+
+
+.space-status {
+    font-size: 0.9rem;
+
+    font-weight: 600;
+}
+
+
+/*
+ * ------------------------------------------------
+ * Estado vazio
+ * ------------------------------------------------
+ */
+
+.empty-state {
+    position: absolute;
+
+    top: 50%;
+    left: 50%;
+
+    transform: translate(-50%, -50%);
+
+    width: 100%;
+
+    padding: 2rem;
+}
+
+
+.empty-state i {
+    font-size: 3.5rem;
+
+    opacity: 0.45;
+}
+
+
+/*
+ * ------------------------------------------------
+ * Mapa
+ * ------------------------------------------------
+ */
+
+#mapWrap {
+    width: 100%;
+
+    height: 100%;
+}
+
+
+.map-container {
+    width: 100%;
+
+    min-height: 420px;
+
+    height: 100%;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    overflow: auto;
+
+    background: #212529;
+
+    border-radius: 0.65rem;
+}
+
+
+#mapCanvas {
+    display: block;
+
+    max-width: 100%;
+
+    max-height: 100%;
+
+    width: auto;
+
+    height: auto;
+
+    object-fit: contain;
+}
+
+
+/*
+ * ------------------------------------------------
+ * Status das APIs
+ * ------------------------------------------------
+ */
+
+#apiUrlBadge i,
+#roiApiUrlBadge i {
+    font-size: 0.55rem;
+
+    transition: color 0.2s ease;
+}
+
+
+#apiUrlBadge.online i,
+#roiApiUrlBadge.online i {
+    color: var(--bs-success) !important;
+}
+
+
+#apiUrlBadge.offline i,
+#roiApiUrlBadge.offline i {
+    color: var(--bs-danger) !important;
+}
+
+
+/*
+ * ------------------------------------------------
+ * Modal de configurações
+ * ------------------------------------------------
+ */
+
+.settings-modal-body {
+    padding: 1.5rem;
+}
+
+
+.settings-section {
+    padding: 0.25rem 0;
+}
+
+
+.settings-section-title {
+    display: flex;
+
+    align-items: center;
+
+    gap: 0.25rem;
+
+    margin-bottom: 1rem;
+
+    font-weight: 600;
+
+    color: var(--bs-dark);
+}
+
+
+.settings-section-title i {
+    color: var(--bs-primary);
+}
+
+
+.settings-status {
+    border: 1px solid var(--bs-border-color);
+
+    border-radius: 0.5rem;
+
+    overflow: hidden;
+
+    background: var(--bs-light);
+}
+
+
+.status-row {
+    min-height: 50px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 1rem;
+
+    padding: 0.75rem 1rem;
+
+    background: #fff;
+}
+
+
+.status-row+.status-row {
+    border-top: 1px solid var(--bs-border-color);
+}
+
+
+/*
+ * ------------------------------------------------
+ * Abas
+ * ------------------------------------------------
+ */
+
+.nav-pills .nav-link {
+    font-size: 0.9rem;
+
+    padding: 0.45rem 0.85rem;
+}
+
+
+/*
+ * ------------------------------------------------
+ * Responsividade
+ * ------------------------------------------------
+ */
+
+@media (min-width: 1200px) {
+
+    .dashboard-main {
+        min-height: calc(100vh - 56px);
+
+        padding-top: 1.5rem;
+        padding-bottom: 1.5rem;
+    }
+
+
+    .parking-card {
+        min-height: 0;
+    }
+
+
+    .parking-card-body {
+        min-height: 480px;
+    }
+
+}
+
+
+@media (max-width: 767.98px) {
+
+    .dashboard-main {
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+    }
+
+
+    .dashboard-toolbar {
+        align-items: stretch;
+
+        flex-direction: column;
+    }
+
+
+    .dashboard-toolbar #connectBtn {
+        width: 100%;
+    }
+
+
+    .metric-card .card-body {
+        min-height: 105px;
+    }
+
+
+    .parking-card-body {
+        min-height: 350px;
+
+        padding: 0.85rem;
+    }
+
+
+    .parking-space {
+        min-height: 125px;
+    }
+
+
+    .map-container {
+        min-height: 320px;
+    }
+
+}
+
+
+@media (max-width: 575.98px) {
+
+    .monitoring-icon {
+        width: 40px;
+        height: 40px;
+    }
+
+
+    .parking-card .card-header {
+        padding: 0.85rem;
+    }
+
+
+    .parking-card-body {
+        padding: 0.75rem;
+    }
+
+
+    .settings-modal-body {
+        padding: 1rem;
+    }
+
+
+    .status-row {
+        align-items: flex-start;
+
+        flex-direction: column;
+
+        gap: 0.5rem;
+    }
+
+}

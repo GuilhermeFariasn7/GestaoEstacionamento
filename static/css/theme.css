@@ -1,0 +1,1001 @@
+/*
+ * ================================================================
+ * SMART PARKING — TEMA VISUAL
+ * ================================================================
+ *
+ * Paleta "control room" escura: superfícies em azul-marinho profundo,
+ * destaque em ciano, verde para vagas livres, vermelho/âmbar para
+ * ocupadas/alertas. Baseado no protótipo gerado no Lovable.
+ *
+ * Este arquivo só cuida de CORES/TIPOGRAFIA/SOMBRAS. Ele é carregado
+ * DEPOIS de parking_dashboard.css / roi_editor.css, que continuam
+ * cuidando de toda a estrutura/layout (tamanhos, paddings, flex etc).
+ * Nenhum id, classe usada pelo JS ou estrutura de HTML foi alterada —
+ * só a aparência.
+ */
+
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap");
+
+
+/*
+ * ------------------------------------------------
+ * TOKENS
+ * ------------------------------------------------
+ */
+
+:root {
+
+    --sp-radius: 0.75rem;
+
+    --sp-background: oklch(0.17 0.024 258);
+    --sp-foreground: oklch(0.95 0.008 250);
+
+    --sp-surface: oklch(0.21 0.026 258);
+    --sp-surface-2: oklch(0.25 0.028 258);
+    --sp-surface-3: oklch(0.28 0.03 258);
+
+    --sp-primary: oklch(0.78 0.14 195);
+    --sp-primary-foreground: oklch(0.18 0.03 240);
+
+    --sp-secondary: oklch(0.27 0.03 258);
+    --sp-secondary-foreground: oklch(0.93 0.01 250);
+
+    --sp-muted-foreground: oklch(0.68 0.022 255);
+
+    --sp-free: oklch(0.72 0.17 158);
+    --sp-free-foreground: oklch(0.14 0.03 240);
+
+    --sp-occupied: oklch(0.66 0.2 20);
+    --sp-occupied-foreground: oklch(0.98 0.005 250);
+
+    --sp-warning: oklch(0.82 0.15 82);
+    --sp-warning-foreground: oklch(0.2 0.03 240);
+
+    --sp-border: oklch(0.32 0.028 255);
+
+    --sp-font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+    --sp-font-sans: "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+    --sp-font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+    --sp-shadow-panel: 0 20px 45px -25px oklch(0 0 0 / 0.85);
+    --sp-gradient-surface: linear-gradient(
+        160deg,
+        color-mix(in oklab, var(--sp-surface) 92%, var(--sp-primary) 8%),
+        var(--sp-surface)
+    );
+}
+
+
+html {
+    color-scheme: dark;
+}
+
+html,
+body {
+    min-height: 100%;
+    background-color: var(--sp-background) !important;
+    color: var(--sp-foreground);
+}
+
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--sp-font-display);
+
+    letter-spacing: -0.01em;
+}
+
+
+small, .small, .form-text {
+    color: var(--sp-muted-foreground);
+}
+
+
+hr {
+    border-color: var(--sp-border);
+
+    opacity: 1;
+}
+
+
+a {
+    color: var(--sp-primary);
+}
+
+
+::selection {
+    background: color-mix(in oklab, var(--sp-primary) 35%, transparent);
+}
+
+
+/* Foco visível consistente com o tema, sem depender de --bs-*-rgb */
+
+.form-control:focus,
+.form-select:focus,
+.btn:focus-visible,
+.nav-link:focus-visible {
+    border-color: var(--sp-primary) !important;
+
+    box-shadow: 0 0 0 0.2rem color-mix(in oklab, var(--sp-primary) 30%, transparent) !important;
+}
+
+
+/*
+ * ------------------------------------------------
+ * NAVBAR
+ * ------------------------------------------------
+ */
+
+.navbar.bg-dark {
+    background-color: var(--sp-surface) !important;
+
+    border-bottom: 1px solid var(--sp-border);
+}
+
+
+.navbar .navbar-brand {
+    font-family: var(--sp-font-display);
+
+    font-weight: 600;
+
+    letter-spacing: -0.01em;
+}
+
+
+.navbar .navbar-brand i {
+    color: var(--sp-primary);
+}
+
+
+.navbar .btn-outline-light {
+    --bs-btn-color: var(--sp-foreground);
+    --bs-btn-border-color: var(--sp-border);
+    --bs-btn-hover-bg: var(--sp-surface-3);
+    --bs-btn-hover-color: var(--sp-foreground);
+    --bs-btn-hover-border-color: var(--sp-border);
+    --bs-btn-active-bg: var(--sp-surface-3);
+    --bs-btn-active-color: var(--sp-foreground);
+    --bs-btn-active-border-color: var(--sp-border);
+}
+
+
+/* Status "Conectado/Desconectado" no topo */
+
+#connStatus,
+#apiStatus {
+    background-color: var(--sp-surface-2) !important;
+
+    border: 1px solid var(--sp-border);
+
+    color: var(--sp-foreground) !important;
+
+    font-weight: 500;
+
+    padding: 0.4rem 0.75rem;
+}
+
+
+/* pulso no ponto verde quando conectado (efeito "live") */
+
+#connDot.text-success {
+    position: relative;
+
+    color: var(--sp-free) !important;
+}
+
+
+#connDot.text-success::after {
+    content: "";
+
+    position: absolute;
+
+    inset: -4px;
+
+    border-radius: 9999px;
+
+    background: currentColor;
+
+    opacity: 0.35;
+
+    animation: sp-live-pulse 1.8s ease-out infinite;
+}
+
+
+#connDot.text-danger {
+    color: var(--sp-occupied) !important;
+}
+
+
+@keyframes sp-live-pulse {
+    0% {
+        transform: scale(0.6);
+        opacity: 0.5;
+    }
+    100% {
+        transform: scale(1.8);
+        opacity: 0;
+    }
+}
+
+
+/*
+ * ------------------------------------------------
+ * TEXTOS SEMÂNTICOS DO BOOTSTRAP
+ * ------------------------------------------------
+ */
+
+.text-secondary {
+    color: var(--sp-muted-foreground) !important;
+}
+
+
+.text-dark,
+.text-emphasis,
+h1, h2, h3, h4, h5, h6 {
+    color: var(--sp-foreground);
+}
+
+
+/*
+ * ------------------------------------------------
+ * CARDS / PAINÉIS
+ * ------------------------------------------------
+ */
+
+.card {
+    background-image: var(--sp-gradient-surface);
+    background-color: var(--sp-surface);
+
+    border: 1px solid var(--sp-border);
+
+    border-radius: var(--sp-radius);
+
+    box-shadow: var(--sp-shadow-panel) !important;
+
+    color: var(--sp-foreground);
+}
+
+
+.card-header.bg-white,
+.card-footer.bg-white {
+    background-color: transparent !important;
+
+    border-color: var(--sp-border) !important;
+}
+
+
+.metric-card:hover,
+.parking-space:hover {
+    box-shadow:
+        0 20px 45px -20px oklch(0 0 0 / 0.9),
+        0 0 0 1px color-mix(in oklab, var(--sp-primary) 25%, transparent) !important;
+}
+
+
+/*
+ * ------------------------------------------------
+ * BOTÕES
+ * ------------------------------------------------
+ */
+
+.btn {
+    font-weight: 500;
+
+    border-radius: 0.55rem;
+}
+
+
+.btn-primary {
+    --bs-btn-bg: var(--sp-primary);
+    --bs-btn-border-color: var(--sp-primary);
+    --bs-btn-color: var(--sp-primary-foreground);
+
+    --bs-btn-hover-bg: color-mix(in oklab, var(--sp-primary) 88%, white);
+    --bs-btn-hover-border-color: color-mix(in oklab, var(--sp-primary) 88%, white);
+    --bs-btn-hover-color: var(--sp-primary-foreground);
+
+    --bs-btn-active-bg: color-mix(in oklab, var(--sp-primary) 80%, white);
+    --bs-btn-active-border-color: color-mix(in oklab, var(--sp-primary) 80%, white);
+    --bs-btn-active-color: var(--sp-primary-foreground);
+
+    --bs-btn-disabled-bg: var(--sp-primary);
+    --bs-btn-disabled-border-color: var(--sp-primary);
+    --bs-btn-disabled-color: var(--sp-primary-foreground);
+
+    box-shadow: 0 0 22px -8px color-mix(in oklab, var(--sp-primary) 65%, transparent);
+}
+
+
+.btn-outline-primary {
+    --bs-btn-color: var(--sp-primary);
+    --bs-btn-border-color: var(--sp-primary);
+
+    --bs-btn-hover-bg: var(--sp-primary);
+    --bs-btn-hover-border-color: var(--sp-primary);
+    --bs-btn-hover-color: var(--sp-primary-foreground);
+
+    --bs-btn-active-bg: var(--sp-primary);
+    --bs-btn-active-border-color: var(--sp-primary);
+    --bs-btn-active-color: var(--sp-primary-foreground);
+}
+
+
+.btn-secondary {
+    --bs-btn-bg: var(--sp-secondary);
+    --bs-btn-border-color: var(--sp-border);
+    --bs-btn-color: var(--sp-secondary-foreground);
+
+    --bs-btn-hover-bg: var(--sp-surface-3);
+    --bs-btn-hover-border-color: var(--sp-border);
+    --bs-btn-hover-color: var(--sp-foreground);
+
+    --bs-btn-active-bg: var(--sp-surface-3);
+    --bs-btn-active-border-color: var(--sp-border);
+    --bs-btn-active-color: var(--sp-foreground);
+}
+
+
+.btn-outline-secondary {
+    --bs-btn-color: var(--sp-muted-foreground);
+    --bs-btn-border-color: var(--sp-border);
+
+    --bs-btn-hover-bg: var(--sp-surface-3);
+    --bs-btn-hover-border-color: var(--sp-border);
+    --bs-btn-hover-color: var(--sp-foreground);
+
+    --bs-btn-active-bg: var(--sp-surface-3);
+    --bs-btn-active-border-color: var(--sp-border);
+    --bs-btn-active-color: var(--sp-foreground);
+}
+
+
+.btn-success {
+    --bs-btn-bg: var(--sp-free);
+    --bs-btn-border-color: var(--sp-free);
+    --bs-btn-color: var(--sp-free-foreground);
+
+    --bs-btn-hover-bg: color-mix(in oklab, var(--sp-free) 88%, white);
+    --bs-btn-hover-border-color: color-mix(in oklab, var(--sp-free) 88%, white);
+    --bs-btn-hover-color: var(--sp-free-foreground);
+
+    --bs-btn-active-bg: color-mix(in oklab, var(--sp-free) 80%, white);
+    --bs-btn-active-border-color: color-mix(in oklab, var(--sp-free) 80%, white);
+    --bs-btn-active-color: var(--sp-free-foreground);
+
+    box-shadow: 0 0 22px -8px color-mix(in oklab, var(--sp-free) 65%, transparent);
+}
+
+
+.btn-outline-danger {
+    --bs-btn-color: var(--sp-occupied);
+    --bs-btn-border-color: var(--sp-occupied);
+
+    --bs-btn-hover-bg: var(--sp-occupied);
+    --bs-btn-hover-border-color: var(--sp-occupied);
+    --bs-btn-hover-color: var(--sp-occupied-foreground);
+}
+
+
+.btn.disabled,
+.btn:disabled {
+    opacity: 0.55;
+}
+
+
+.spinner-border {
+    color: currentColor;
+}
+
+
+/*
+ * ------------------------------------------------
+ * BADGES
+ * ------------------------------------------------
+ */
+
+.badge.text-bg-secondary {
+    background-color: var(--sp-surface-2) !important;
+
+    border: 1px solid var(--sp-border);
+
+    color: var(--sp-foreground) !important;
+
+    font-weight: 500;
+}
+
+
+.badge.text-bg-primary {
+    background-color: var(--sp-primary) !important;
+
+    color: var(--sp-primary-foreground) !important;
+
+    font-weight: 600;
+}
+
+
+/*
+ * ------------------------------------------------
+ * FORMULÁRIOS
+ * ------------------------------------------------
+ */
+
+.form-control,
+.form-select {
+    background-color: var(--sp-surface-2);
+
+    border: 1px solid var(--sp-border);
+
+    color: var(--sp-foreground);
+}
+
+
+.form-control:focus,
+.form-select:focus {
+    background-color: var(--sp-surface-2);
+
+    color: var(--sp-foreground);
+}
+
+
+.form-control::placeholder {
+    color: var(--sp-muted-foreground);
+
+    opacity: 0.8;
+}
+
+
+.form-select {
+    --bs-form-select-bg-img: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+}
+
+
+.form-control:disabled,
+.form-select:disabled {
+    background-color: var(--sp-surface);
+
+    color: var(--sp-muted-foreground);
+}
+
+
+.form-label {
+    font-weight: 500;
+
+    font-size: 0.85rem;
+
+    color: var(--sp-foreground);
+}
+
+
+.input-group-text {
+    background-color: var(--sp-surface-2);
+
+    border: 1px solid var(--sp-border);
+
+    color: var(--sp-muted-foreground);
+}
+
+
+/*
+ * ------------------------------------------------
+ * ABAS (nav-pills)
+ * ------------------------------------------------
+ */
+
+.nav-pills {
+    background-color: var(--sp-surface-2);
+
+    border: 1px solid var(--sp-border);
+
+    border-radius: 0.6rem;
+
+    padding: 0.2rem;
+}
+
+
+.nav-pills .nav-link {
+    color: var(--sp-muted-foreground);
+
+    border-radius: 0.45rem;
+}
+
+
+.nav-pills .nav-link:hover {
+    color: var(--sp-foreground);
+}
+
+
+.nav-pills .nav-link.active {
+    background-color: var(--sp-primary);
+
+    color: var(--sp-primary-foreground);
+
+    font-weight: 600;
+}
+
+
+/*
+ * ------------------------------------------------
+ * LISTAS (list-group) — usado no editor de ROI
+ * ------------------------------------------------
+ */
+
+.list-group-item {
+    background-color: transparent;
+
+    border-color: var(--sp-border);
+
+    color: var(--sp-foreground);
+}
+
+
+.region-item.editing {
+    background: color-mix(in oklab, var(--sp-primary) 12%, transparent) !important;
+
+    border-left-color: var(--sp-primary) !important;
+}
+
+
+/*
+ * ------------------------------------------------
+ * ALERTAS
+ * ------------------------------------------------
+ */
+
+.alert-light {
+    background-color: var(--sp-surface-2) !important;
+
+    border-color: var(--sp-border) !important;
+
+    color: var(--sp-muted-foreground) !important;
+}
+
+
+/*
+ * ------------------------------------------------
+ * MODAL
+ * ------------------------------------------------
+ */
+
+.modal-content {
+    background-color: var(--sp-surface);
+
+    background-image: var(--sp-gradient-surface);
+
+    border: 1px solid var(--sp-border);
+
+    color: var(--sp-foreground);
+}
+
+
+.modal-header,
+.modal-footer {
+    border-color: var(--sp-border);
+}
+
+
+.btn-close {
+    filter: invert(1) grayscale(100%) brightness(1.8);
+}
+
+
+.settings-status {
+    background: var(--sp-surface-2) !important;
+
+    border-color: var(--sp-border) !important;
+}
+
+
+.status-row {
+    background: transparent !important;
+}
+
+
+.status-row + .status-row {
+    border-color: var(--sp-border) !important;
+}
+
+
+/*
+ * ------------------------------------------------
+ * ÁREA DE VÍDEO / MAPA / CANVAS
+ * ------------------------------------------------
+ */
+
+.map-container,
+.canvas-panel,
+#canvas,
+.empty-canvas {
+    background: var(--sp-background) !important;
+}
+
+
+.parking-card-body {
+    background: color-mix(in oklab, var(--sp-surface) 60%, transparent);
+
+    border-radius: 0 0 var(--sp-radius) var(--sp-radius);
+}
+
+
+/*
+ * ------------------------------------------------
+ * VAGAS (cards free/occupied)
+ * ------------------------------------------------
+ */
+
+.parking-space {
+    background-color: var(--sp-surface-2) !important;
+
+    border: 1px solid var(--sp-border);
+
+    color: var(--sp-foreground);
+}
+
+
+.parking-space.free {
+    border-left: 3px solid var(--sp-free);
+}
+
+
+.parking-space.free .bi-check-circle,
+.parking-space.free .space-status {
+    color: var(--sp-free) !important;
+}
+
+
+.parking-space.occupied {
+    border-left: 3px solid var(--sp-occupied);
+}
+
+
+.parking-space.occupied .bi-car-front-fill,
+.parking-space.occupied .space-status {
+    color: var(--sp-occupied) !important;
+}
+
+
+/* Métricas do topo do dashboard */
+
+.metric-card .text-success,
+#freeCount {
+    color: var(--sp-free) !important;
+}
+
+
+.metric-card .text-danger,
+#occupiedCount {
+    color: var(--sp-occupied) !important;
+}
+
+
+.monitoring-icon {
+    background: color-mix(in oklab, var(--sp-primary) 15%, transparent) !important;
+
+    color: var(--sp-primary) !important;
+}
+
+
+/*
+ * ------------------------------------------------
+ * TIPOGRAFIA MONOESPAÇADA (contadores, coordenadas)
+ * ------------------------------------------------
+ */
+
+#freeCount,
+#occupiedCount,
+#pointCounter,
+#cursorCoords,
+#regionCountBadge,
+.space-status {
+    font-family: var(--sp-font-mono);
+
+    font-variant-numeric: tabular-nums;
+}
+
+
+/*
+ * ------------------------------------------------
+ * MARCA / NAVEGAÇÃO ENTRE PÁGINAS
+ * ------------------------------------------------
+ */
+
+.sp-brand-icon {
+    display: grid;
+
+    place-items: center;
+
+    width: 2.25rem;
+
+    height: 2.25rem;
+
+    border-radius: 0.6rem;
+
+    background: color-mix(in oklab, var(--sp-primary) 16%, transparent);
+
+    color: var(--sp-primary);
+
+    font-size: 1.1rem;
+}
+
+
+.sp-brand-title {
+    font-family: var(--sp-font-display);
+
+    font-size: 0.95rem;
+
+    color: var(--sp-foreground);
+}
+
+
+.sp-brand-subtitle {
+    font-size: 0.68rem;
+
+    color: var(--sp-muted-foreground);
+}
+
+
+.sp-page-nav {
+    margin-left: 0.25rem;
+}
+
+
+.sp-page-link {
+    display: flex;
+
+    align-items: center;
+
+    padding: 0.45rem 0.85rem;
+
+    border-radius: 0.5rem;
+
+    font-size: 0.85rem;
+
+    color: var(--sp-muted-foreground);
+
+    text-decoration: none;
+
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+
+.sp-page-link:hover {
+    background: color-mix(in oklab, var(--sp-secondary) 70%, transparent);
+
+    color: var(--sp-foreground);
+}
+
+
+.sp-page-link.active {
+    background: var(--sp-secondary);
+
+    color: var(--sp-foreground);
+
+    font-weight: 600;
+}
+
+
+/*
+ * ------------------------------------------------
+ * TÍTULOS DE PÁGINA / PAINEL
+ * ------------------------------------------------
+ */
+
+.sp-page-title {
+    font-family: var(--sp-font-display);
+
+    font-size: 1.4rem;
+
+    font-weight: 600;
+
+    letter-spacing: -0.01em;
+
+    margin: 0;
+}
+
+
+.sp-panel-title {
+    font-family: var(--sp-font-display);
+
+    font-size: 0.95rem;
+
+    font-weight: 600;
+}
+
+
+/*
+ * ------------------------------------------------
+ * CARDS DE MÉTRICA (novo layout ícone + rótulo + valor)
+ * ------------------------------------------------
+ */
+
+.metric-card-top {
+    display: flex;
+
+    align-items: flex-start;
+
+    justify-content: space-between;
+
+    gap: 0.5rem;
+}
+
+
+.metric-icon {
+    display: grid;
+
+    place-items: center;
+
+    width: 2.1rem;
+
+    height: 2.1rem;
+
+    border-radius: 0.55rem;
+
+    font-size: 1rem;
+
+    flex-shrink: 0;
+}
+
+
+.metric-icon-free {
+    background: color-mix(in oklab, var(--sp-free) 16%, transparent);
+
+    color: var(--sp-free);
+}
+
+
+.metric-icon-occupied {
+    background: color-mix(in oklab, var(--sp-occupied) 16%, transparent);
+
+    color: var(--sp-occupied);
+}
+
+
+.metric-icon-primary {
+    background: color-mix(in oklab, var(--sp-primary) 16%, transparent);
+
+    color: var(--sp-primary);
+}
+
+
+.metric-label {
+    font-size: 0.68rem;
+
+    text-transform: uppercase;
+
+    letter-spacing: 0.06em;
+
+    color: var(--sp-muted-foreground);
+
+    font-weight: 600;
+
+    display: flex;
+
+    align-items: center;
+}
+
+
+.metric-value {
+    font-family: var(--sp-font-display);
+
+    font-size: 2rem;
+
+    font-weight: 700;
+
+    margin-top: 0.85rem;
+
+    color: var(--sp-foreground);
+
+    font-variant-numeric: tabular-nums;
+}
+
+
+.metric-value-time {
+    font-size: 1.3rem;
+}
+
+
+.metric-hint {
+    font-size: 0.72rem;
+
+    color: var(--sp-muted-foreground);
+
+    margin-top: 0.2rem;
+}
+
+
+.metric-progress {
+    height: 0.35rem;
+
+    margin-top: 0.85rem;
+
+    background-color: var(--sp-surface-2);
+
+    border-radius: 999px;
+
+    overflow: hidden;
+}
+
+
+.metric-progress .progress-bar {
+    background-color: var(--sp-primary);
+}
+
+
+/*
+ * ------------------------------------------------
+ * BARRA LATERAL — ESTADO DAS VAGAS
+ * ------------------------------------------------
+ */
+
+.sidebar-card {
+    display: flex;
+
+    flex-direction: column;
+}
+
+
+.sidebar-list-wrap {
+    max-height: 480px;
+
+    overflow-y: auto;
+}
+
+
+.sidebar-list .list-group-item {
+    display: flex;
+
+    align-items: center;
+
+    gap: 0.6rem;
+
+    padding: 0.6rem 1rem;
+
+    font-size: 0.82rem;
+}
+
+
+.sidebar-dot {
+    width: 0.5rem;
+
+    height: 0.5rem;
+
+    border-radius: 999px;
+
+    flex-shrink: 0;
+}
+
+
+.sidebar-dot.free {
+    background: var(--sp-free);
+}
+
+
+.sidebar-dot.occupied {
+    background: var(--sp-occupied);
+}
+
+
+.sidebar-vaga-id {
+    font-family: var(--sp-font-mono);
+
+    font-size: 0.78rem;
+
+    min-width: 3.2rem;
+}
+
+
+.sidebar-vaga-status {
+    margin-left: auto;
+
+    font-size: 0.72rem;
+
+    font-weight: 600;
+}
+
+
+.sidebar-vaga-status.free {
+    color: var(--sp-free);
+}
+
+
+.sidebar-vaga-status.occupied {
+    color: var(--sp-occupied);
+}
