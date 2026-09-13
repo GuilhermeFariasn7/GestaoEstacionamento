@@ -219,3 +219,5 @@ __marimo__/
 
 bkp/
 yolo12x.pt
+data/
+reference_frames

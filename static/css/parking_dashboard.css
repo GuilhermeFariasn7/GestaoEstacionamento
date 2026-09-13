@@ -1,519 +1,1161 @@
-/*
- * ================================================================
- * SMART PARKING — DASHBOARD
- * ================================================================
- */
-
-
-/*
- * ------------------------------------------------
- * Estrutura geral
- * ------------------------------------------------
- */
+/* ========================================================= */
+/* RESET E BASE                                              */
+/* ========================================================= */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
 
 html,
 body {
-    min-height: 100%;
+    height: 100%;
+    overflow: hidden;
 }
-
 
 body {
-    min-height: 100vh;
-}
-
-
-.dashboard-main {
-    min-height: calc(100vh - 56px);
-    padding-top: 1.5rem;
-    padding-bottom: 1.5rem;
-
+    background: #f0f2f5;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    color: #1a1a2e;
     display: flex;
     flex-direction: column;
 }
 
-
-/*
- * ------------------------------------------------
- * Barra superior do monitoramento
- * ------------------------------------------------
- */
-
-.dashboard-toolbar {
+/* ========================================================= */
+/* NAVBAR                                                    */
+/* ========================================================= */
+.navbar {
+    background: #0f0f1a;
+    padding: 0.5rem 1.5rem;
+    border-bottom: 2px solid #1e5914;
     display: flex;
-
     align-items: center;
-    justify-content: space-between;
-
-    gap: 1rem;
-
-    margin-bottom: 1.25rem;
-
-    padding: 3px;
-    background-color: oklch(0.17 0.024 258);
-    border-radius: 5px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    gap: 0.5rem;
 }
 
+.navbar .container-fluid {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.navbar-brand {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: #fff;
+    gap: 0.6rem;
+}
+
+.navbar-brand:hover {
+    color: #1e5914;
+}
+
+.sp-brand-icon {
+    font-size: 1.6rem;
+    color: #1e5914;
+    display: flex;
+    align-items: center;
+}
+
+.sp-brand-info {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+}
+
+.sp-brand-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+}
+
+.sp-brand-subtitle {
+    font-size: 0.6rem;
+    color: #8888aa;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+}
+
+.sp-page-nav {
+    display: flex;
+    gap: 0.25rem;
+    margin-left: 1.5rem;
+}
+
+.sp-page-link {
+    color: #8888aa;
+    text-decoration: none;
+    padding: 0.3rem 0.8rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    transition: 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.sp-page-link:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.sp-page-link.active {
+    color: #fff;
+    background: #1e5914;
+}
+
+.navbar .ms-auto {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.badge-status-nav {
+    background: #1a1a2e;
+    color: #8888aa;
+    padding: 0.2rem 0.7rem;
+    border-radius: 20px;
+    font-size: 0.65rem;
+    border: 1px solid #2a2a4a;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.badge-status-nav.online {
+    background: rgba(46, 204, 113, 0.15);
+    color: #2ecc71;
+    border-color: #2ecc71;
+}
+
+.badge-status-nav.offline {
+    background: rgba(233, 69, 96, 0.15);
+    color: #e94560;
+    border-color: #e94560;
+}
+
+#connDot {
+    font-size: 0.45rem;
+}
+
+.btn-outline-light {
+    background: transparent;
+    border: 1px solid #2a2a4a;
+    color: #aaaacc;
+    padding: 0.2rem 0.7rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: 0.2s;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.btn-outline-light:hover {
+    background: #2a2a4a;
+    color: #fff;
+    border-color: #4a4a6a;
+}
+
+/* ========================================================= */
+/* MAIN                                                     */
+/* ========================================================= */
+.dashboard-main {
+    flex: 1;
+    padding: 0.75rem 1.5rem 1rem;
+    max-width: 1600px;
+    margin: 0 auto;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* ========================================================= */
+/* BARRA SUPERIOR                                            */
+/* ========================================================= */
+.dashboard-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 1.25rem;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
 
 .monitoring-info {
     display: flex;
-    text-align: center;
-    flex-direction: row;
-    justify-content: center;
     align-items: center;
-
     gap: 0.75rem;
+    flex-wrap: wrap;
 }
-
 
 .monitoring-icon {
-    width: 44px;
-    height: 44px;
-
+    width: 36px;
+    height: 36px;
     display: flex;
-
     align-items: center;
     justify-content: center;
-
-    border-radius: 0.75rem;
-
-    background: rgba(13, 110, 253, 0.1);
-
-    color: var(--bs-primary);
-
-    font-size: 1.35rem;
+    border-radius: 8px;
+    background: rgba(30, 89, 20, 0.12);
+    color: #1e5914;
+    font-size: 1.1rem;
 }
 
-
-#envLabel {
-    margin-left: 0.15rem;
+.monitoring-info .info-label {
+    font-size: 0.55rem;
+    text-transform: uppercase;
+    color: #8888aa;
+    letter-spacing: 0.3px;
+    display: block;
 }
 
+.monitoring-info .info-value {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #1a1a2e;
+}
 
-/*
- * ------------------------------------------------
- * Indicadores
- * ------------------------------------------------
- */
+.monitoring-info .info-value.status-stopped {
+    color: #8888aa;
+}
 
+.monitoring-info .info-value.status-stopped i {
+    color: #8888aa;
+}
+
+.monitoring-info .info-value.status-running {
+    color: #2ecc71;
+}
+
+.monitoring-info .info-value.status-running i {
+    color: #2ecc71;
+}
+
+.info-divider {
+    width: 1px;
+    height: 24px;
+    background: #eaedf2;
+}
+
+.btn-primary {
+    background: #1e5914;
+    border: none;
+    color: #fff;
+    padding: 0.4rem 1.2rem;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.btn-primary:hover {
+    background: #15420f;
+    transform: translateY(-1px);
+}
+
+/* ========================================================= */
+/* INDICADORES                                               */
+/* ========================================================= */
 .dashboard-stats {
-    margin-bottom: 1.25rem;
-}
-
-
-.metric-card {
-    border-radius: 0.75rem;
-
-    transition:
-        transform 0.15s ease,
-        box-shadow 0.15s ease;
-}
-
-
-.metric-card:hover {
-    transform: translateY(-2px);
-}
-
-
-.metric-card .card-body {
-    min-height: 125px;
-
-    display: flex;
-
-    flex-direction: column;
-
-    justify-content: center;
-
-    padding: 1.25rem;
-}
-
-
-.metric-label {
-    color: var(--bs-secondary-color);
-
-    font-size: 0.875rem;
-
-    margin-bottom: 0.25rem;
-}
-
-
-/*
- * ------------------------------------------------
- * Card principal
- * ------------------------------------------------
- */
-
-.parking-card {
-    flex: 1;
-
-    min-height: 0;
-
-    border-radius: 0.75rem;
-
-    overflow: hidden;
-
-    display: flex;
-
-    flex-direction: column;
-}
-
-
-.parking-card .card-header {
-    padding: 1rem 1.25rem;
-
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
     flex-shrink: 0;
 }
 
+.stat-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+.stat-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+.stat-icon-free {
+    background: rgba(46, 204, 113, 0.12);
+    color: #2ecc71;
+}
+
+.stat-icon-occupied {
+    background: rgba(233, 69, 96, 0.12);
+    color: #e94560;
+}
+
+.stat-icon-primary {
+    background: rgba(30, 89, 20, 0.12);
+    color: #1e5914;
+}
+
+.stat-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.stat-value {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #1a1a2e;
+    display: block;
+    line-height: 1.1;
+}
+
+.stat-value-time {
+    font-size: 0.9rem;
+}
+
+.stat-label {
+    font-size: 0.7rem;
+    color: #8888aa;
+    display: block;
+}
+
+.stat-progress {
+    height: 3px;
+    border-radius: 10px;
+    background: #eaedf2;
+    margin-top: 0.25rem;
+    overflow: hidden;
+}
+
+.stat-progress-bar {
+    height: 100%;
+    border-radius: 10px;
+    background: #1e5914;
+    transition: width 0.5s ease;
+}
+
+/* ========================================================= */
+/* CONTEÚDO PRINCIPAL                                        */
+/* ========================================================= */
+.dashboard-content {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 0.75rem;
+    flex: 1;
+    min-height: 0;
+}
+
+/* ========================================================= */
+/* CARD DE VAGAS                                             */
+/* ========================================================= */
+.parking-card {
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.parking-card .card-header {
+    padding: 0.6rem 1.25rem;
+    background: #f8f9fc;
+    border-bottom: 1px solid #eaedf2;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.parking-card .card-header h2 {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #1a1a2e;
+    margin: 0;
+}
+
+.parking-card .card-header small {
+    font-size: 0.65rem;
+    color: #8888aa;
+    display: block;
+}
+
+.view-toggles {
+    display: flex;
+    gap: 0.15rem;
+    background: #f0f2f5;
+    border-radius: 5px;
+    padding: 0.1rem;
+}
+
+.view-toggle {
+    background: transparent;
+    border: none;
+    color: #8888aa;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+}
+
+.view-toggle:hover {
+    color: #1a1a2e;
+}
+
+.view-toggle.active {
+    background: #fff;
+    color: #1a1a2e;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
 
 .parking-card-body {
     flex: 1;
-
-    min-height: 420px;
-
-    position: relative;
-
-    padding: 1.25rem;
-
+    padding: 0.75rem;
     overflow: auto;
+    position: relative;
 }
 
-
-/*
- * ------------------------------------------------
- * Lista de vagas
- * ------------------------------------------------
- */
-
-#grid {
-    width: 100%;
+/* ========================================================= */
+/* GRADE DE VAGAS                                            */
+/* ========================================================= */
+.parking-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 0.6rem;
 }
-
 
 .parking-space {
-    min-height: 150px;
-
-    border-radius: 0.65rem;
-
-    transition:
-        transform 0.15s ease,
-        box-shadow 0.15s ease;
+    background: #f8f9fc;
+    border-radius: 8px;
+    border: 2px solid #eaedf2;
+    padding: 0.6rem 0.5rem;
+    text-align: center;
+    transition: all 0.2s ease;
+    cursor: default;
+    min-height: 85px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
-
 
 .parking-space:hover {
     transform: translateY(-2px);
-
-    box-shadow:
-        0 0.35rem 0.9rem rgba(0, 0, 0, 0.1) !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
-
 
 .parking-space.free {
-    border-left: 4px solid var(--bs-success);
+    border-color: #2ecc71;
+    background: #f0faf5;
 }
-
 
 .parking-space.occupied {
-    border-left: 4px solid var(--bs-danger);
+    border-color: #e94560;
+    background: #fdf2f4;
 }
 
-
-.parking-space .card-body {
-    padding: 1.25rem 0.75rem;
-}
-
-
-.space-status {
-    font-size: 0.9rem;
-
+.parking-space .space-name {
     font-weight: 600;
+    font-size: 0.75rem;
+    color: #1a1a2e;
+    margin-bottom: 0.15rem;
 }
 
-
-/*
- * ------------------------------------------------
- * Estado vazio
- * ------------------------------------------------
- */
-
-.empty-state {
-    position: absolute;
-
-    top: 50%;
-    left: 50%;
-
-    transform: translate(-50%, -50%);
-
-    width: 100%;
-
-    padding: 2rem;
+.parking-space .space-icon {
+    font-size: 1.4rem;
+    margin-bottom: 0.15rem;
 }
 
-
-.empty-state i {
-    font-size: 3.5rem;
-
-    opacity: 0.45;
+.parking-space.free .space-icon {
+    color: #2ecc71;
 }
 
+.parking-space.occupied .space-icon {
+    color: #e94560;
+}
 
-/*
- * ------------------------------------------------
- * Mapa
- * ------------------------------------------------
- */
+.parking-space .space-status {
+    font-size: 0.55rem;
+    font-weight: 600;
+    padding: 0.05rem 0.5rem;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
 
+.parking-space.free .space-status {
+    background: #d4edda;
+    color: #155724;
+}
+
+.parking-space.occupied .space-status {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* ========================================================= */
+/* MAPA                                                     */
+/* ========================================================= */
 #mapWrap {
     width: 100%;
-
     height: 100%;
 }
 
+#mapWrap.d-none {
+    display: none !important;
+}
 
 .map-container {
     width: 100%;
-
-    min-height: 420px;
-
     height: 100%;
-
+    min-height: 0;
     display: flex;
-
     align-items: center;
-
     justify-content: center;
-
     overflow: auto;
-
-    background: #212529;
-
-    border-radius: 0.65rem;
+    background: #14141f;
+    border-radius: 8px;
 }
-
 
 #mapCanvas {
     display: block;
-
     max-width: 100%;
-
     max-height: 100%;
-
     width: auto;
-
     height: auto;
-
-    object-fit: contain;
 }
 
-
-/*
- * ------------------------------------------------
- * Status das APIs
- * ------------------------------------------------
- */
-
-#apiUrlBadge i,
-#roiApiUrlBadge i {
-    font-size: 0.55rem;
-
-    transition: color 0.2s ease;
-}
-
-
-#apiUrlBadge.online i,
-#roiApiUrlBadge.online i {
-    color: var(--bs-success) !important;
-}
-
-
-#apiUrlBadge.offline i,
-#roiApiUrlBadge.offline i {
-    color: var(--bs-danger) !important;
-}
-
-
-/*
- * ------------------------------------------------
- * Modal de configurações
- * ------------------------------------------------
- */
-
-.settings-modal-body {
+/* ========================================================= */
+/* ESTADO VAZIO                                              */
+/* ========================================================= */
+.empty-state {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
     padding: 1.5rem;
 }
 
-
-.settings-section {
-    padding: 0.25rem 0;
+.empty-state i {
+    font-size: 2.5rem;
+    color: #8888aa;
+    opacity: 0.4;
 }
 
+.empty-state h5 {
+    margin-top: 0.75rem;
+    margin-bottom: 0.15rem;
+    font-size: 0.95rem;
+    color: #5a5a7a;
+}
 
-.settings-section-title {
-    display: flex;
+.empty-state p {
+    color: #8888aa;
+    margin-bottom: 0.75rem;
+    font-size: 0.8rem;
+}
 
+.btn-outline-primary {
+    background: transparent;
+    border: 1px solid #1e5914;
+    color: #1e5914;
+    padding: 0.3rem 1rem;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: 0.2s;
+    display: inline-flex;
     align-items: center;
+    gap: 0.3rem;
+    font-size: 0.75rem;
+    text-decoration: none;
+}
 
-    gap: 0.25rem;
+.btn-outline-primary:hover {
+    background: #1e5914;
+    color: #fff;
+}
 
-    margin-bottom: 1rem;
+/* ========================================================= */
+/* BARRA LATERAL                                             */
+/* ========================================================= */
+.sidebar-card {
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
 
+.sidebar-card .card-header {
+    padding: 0.6rem 1.25rem;
+    background: #f8f9fc;
+    border-bottom: 1px solid #eaedf2;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.sidebar-card .card-header h2 {
+    font-size: 0.85rem;
     font-weight: 600;
-
-    color: var(--bs-dark);
+    color: #1a1a2e;
+    margin: 0;
 }
 
-
-.settings-section-title i {
-    color: var(--bs-primary);
+.sidebar-card .sidebar-body {
+    padding: 0;
+    flex: 1;
+    overflow: hidden;
 }
 
+.sidebar-list {
+    max-height: 100%;
+    overflow-y: auto;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.sidebar-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.4rem 1.25rem;
+    border-bottom: 1px solid #f0f2f5;
+    font-size: 0.8rem;
+}
+
+.sidebar-list li:last-child {
+    border-bottom: none;
+}
+
+.sidebar-list .vaga-info {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.sidebar-list .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.sidebar-list .status-dot.free {
+    background: #2ecc71;
+}
+
+.sidebar-list .status-dot.occupied {
+    background: #e94560;
+}
+
+.sidebar-list .vaga-name {
+    font-weight: 500;
+    color: #1a1a2e;
+}
+
+.sidebar-list .vaga-status {
+    font-size: 0.6rem;
+    font-weight: 600;
+    padding: 0.05rem 0.5rem;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.sidebar-list .vaga-status.free {
+    background: #d4edda;
+    color: #155724;
+}
+
+.sidebar-list .vaga-status.occupied {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.sidebar-empty {
+    text-align: center;
+    padding: 1.5rem 1rem;
+    color: #8888aa;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.sidebar-empty i {
+    font-size: 1.6rem;
+    opacity: 0.4;
+}
+
+.badge-count {
+    background: #1e5914;
+    color: #fff;
+    padding: 0.1rem 0.5rem;
+    border-radius: 20px;
+    font-size: 0.65rem;
+    font-weight: 600;
+}
+
+/* ========================================================= */
+/* MODAL                                                     */
+/* ========================================================= */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1050;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal.show {
+    display: flex;
+}
+
+.modal-dialog {
+    max-width: 550px;
+    width: 95%;
+    margin: 1rem;
+}
+
+.modal-content {
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #eaedf2;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.modal-header .modal-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1a1a2e;
+    margin: 0;
+}
+
+.modal-header .modal-title i {
+    color: #1e5914;
+    margin-right: 0.4rem;
+}
+
+.modal-header small {
+    font-size: 0.7rem;
+    color: #8888aa;
+    display: block;
+}
+
+.btn-close {
+    background: transparent;
+    border: none;
+    font-size: 1.3rem;
+    line-height: 1;
+    cursor: pointer;
+    color: #8888aa;
+    padding: 0;
+}
+
+.btn-close:hover {
+    color: #1a1a2e;
+}
+
+.modal-body {
+    padding: 1.25rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.modal-footer {
+    padding: 0.75rem 1.5rem;
+    border-top: 1px solid #eaedf2;
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* ========================================================= */
+/* FORMULÁRIOS DO MODAL                                      */
+/* ========================================================= */
+.settings-section {
+    padding: 0;
+}
+
+.settings-title {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+    color: #1a1a2e;
+    font-size: 0.85rem;
+}
+
+.settings-title i {
+    color: #1e5914;
+    margin-right: 0.4rem;
+}
+
+.form-group {
+    margin-bottom: 0.75rem;
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #3a3a5a;
+    margin-bottom: 0.2rem;
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid #d0d5dd;
+    border-radius: 5px;
+    font-size: 0.8rem;
+    background: #fff;
+    transition: 0.2s;
+    color: #1a1a2e;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: #1e5914;
+    box-shadow: 0 0 0 3px rgba(30, 89, 20, 0.1);
+}
+
+.input-group {
+    display: flex;
+    gap: 0;
+}
+
+.input-group .form-control {
+    flex: 1;
+    border-radius: 5px 0 0 5px;
+}
+
+.input-group .input-group-badge {
+    background: #f0f2f5;
+    border: 1px solid #d0d5dd;
+    border-left: none;
+    border-radius: 0 5px 5px 0;
+    padding: 0.35rem 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.input-group .input-group-badge i {
+    font-size: 0.5rem;
+    color: #8888aa;
+    transition: color 0.2s ease;
+}
+
+.input-group .input-group-badge.online i {
+    color: #2ecc71 !important;
+}
+
+.input-group .input-group-badge.offline i {
+    color: #e94560 !important;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
 
 .settings-status {
-    border: 1px solid var(--bs-border-color);
-
-    border-radius: 0.5rem;
-
+    border: 1px solid #eaedf2;
+    border-radius: 6px;
     overflow: hidden;
-
-    background: var(--bs-light);
 }
 
-
 .status-row {
-    min-height: 50px;
-
+    min-height: 40px;
     display: flex;
-
     align-items: center;
-
     justify-content: space-between;
-
     gap: 1rem;
-
-    padding: 0.75rem 1rem;
-
+    padding: 0.5rem 1rem;
     background: #fff;
 }
 
-
 .status-row+.status-row {
-    border-top: 1px solid var(--bs-border-color);
+    border-top: 1px solid #eaedf2;
 }
 
-
-/*
- * ------------------------------------------------
- * Abas
- * ------------------------------------------------
- */
-
-.nav-pills .nav-link {
-    font-size: 0.9rem;
-
-    padding: 0.45rem 0.85rem;
+.status-row i {
+    color: #1e5914;
+    margin-right: 0.4rem;
 }
 
+.badge-status {
+    background: #f0f2f5;
+    color: #5a5a7a;
+    padding: 0.15rem 0.6rem;
+    border-radius: 20px;
+    font-size: 0.65rem;
+    font-weight: 500;
+}
 
-/*
- * ------------------------------------------------
- * Responsividade
- * ------------------------------------------------
- */
+.badge-status.online {
+    background: #d4edda;
+    color: #155724;
+}
 
-@media (min-width: 1200px) {
+.badge-status.offline {
+    background: #f8d7da;
+    color: #721c24;
+}
 
+hr {
+    border: none;
+    border-top: 1px solid #eaedf2;
+    margin: 1rem 0;
+}
+
+.btn-secondary {
+    background: #6c757d;
+    border: none;
+    color: #fff;
+    padding: 0.35rem 1rem;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: 0.2s;
+    font-size: 0.8rem;
+}
+
+.btn-secondary:hover {
+    background: #5a6268;
+}
+
+/* ========================================================= */
+/* RESPONSIVIDADE                                            */
+/* ========================================================= */
+@media (max-width: 1200px) {
+    .dashboard-content {
+        grid-template-columns: 1fr;
+    }
+
+    .sidebar-card {
+        max-height: 220px;
+    }
+
+    .sidebar-list {
+        max-height: 160px;
+    }
+}
+
+@media (max-width: 992px) {
+    .dashboard-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .parking-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
     .dashboard-main {
-        min-height: calc(100vh - 56px);
-
-        padding-top: 1.5rem;
-        padding-bottom: 1.5rem;
+        padding: 0.5rem 0.75rem;
     }
 
-
-    .parking-card {
-        min-height: 0;
+    .navbar {
+        padding: 0.4rem 0.75rem;
     }
-
-
-    .parking-card-body {
-        min-height: 480px;
-    }
-
-}
-
-
-@media (max-width: 767.98px) {
-
-    .dashboard-main {
-        padding-top: 1rem;
-        padding-bottom: 1rem;
-    }
-
 
     .dashboard-toolbar {
-        align-items: stretch;
-
         flex-direction: column;
+        align-items: stretch;
+        padding: 0.5rem 1rem;
     }
 
-
-    .dashboard-toolbar #connectBtn {
+    .dashboard-toolbar .btn-primary {
         width: 100%;
+        justify-content: center;
     }
 
-
-    .metric-card .card-body {
-        min-height: 105px;
+    .monitoring-info {
+        justify-content: center;
     }
 
-
-    .parking-card-body {
-        min-height: 350px;
-
-        padding: 0.85rem;
+    .info-divider {
+        display: none;
     }
 
-
-    .parking-space {
-        min-height: 125px;
+    .sp-page-nav {
+        margin-left: 0;
+        width: 100%;
+        justify-content: center;
     }
 
-
-    .map-container {
-        min-height: 320px;
+    .sp-page-link {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.6rem;
     }
 
-}
-
-
-@media (max-width: 575.98px) {
-
-    .monitoring-icon {
-        width: 40px;
-        height: 40px;
+    .sp-brand-subtitle {
+        display: none;
     }
-
 
     .parking-card .card-header {
-        padding: 0.85rem;
+        flex-direction: column;
+        align-items: stretch;
     }
 
+    .view-toggles {
+        align-self: flex-start;
+    }
 
     .parking-card-body {
+        padding: 0.5rem;
+    }
+
+    .parking-grid {
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+        gap: 0.4rem;
+    }
+
+    .parking-space {
+        min-height: 70px;
+        padding: 0.4rem 0.3rem;
+    }
+
+    .parking-space .space-icon {
+        font-size: 1.2rem;
+    }
+
+    .parking-space .space-name {
+        font-size: 0.65rem;
+    }
+
+    .parking-space .space-status {
+        font-size: 0.5rem;
+    }
+
+    .modal-dialog {
+        margin: 0.5rem;
+        width: 98%;
+    }
+
+    .modal-header {
+        padding: 0.75rem 1rem;
+    }
+
+    .modal-body {
         padding: 0.75rem;
     }
 
+    .modal-footer {
+        padding: 0.5rem 1rem;
+    }
+}
 
-    .settings-modal-body {
-        padding: 1rem;
+@media (max-width: 480px) {
+    .dashboard-stats {
+        grid-template-columns: 1fr;
     }
 
-
-    .status-row {
-        align-items: flex-start;
-
-        flex-direction: column;
-
-        gap: 0.5rem;
+    .dashboard-stats .stat-card {
+        padding: 0.6rem 0.75rem;
     }
 
+    .stat-value {
+        font-size: 1.2rem;
+    }
+
+    .stat-value-time {
+        font-size: 0.8rem;
+    }
+
+    .parking-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .navbar .ms-auto .btn-outline-light span {
+        display: none;
+    }
+
+    .sp-brand-icon {
+        font-size: 1.3rem;
+    }
+
+    .sp-brand-title {
+        font-size: 0.85rem;
+    }
+
+    .sidebar-card {
+        max-height: 180px;
+    }
+
+    .sidebar-list {
+        max-height: 120px;
+    }
+
+    .sidebar-list li {
+        padding: 0.25rem 0.75rem;
+        font-size: 0.7rem;
+    }
 }
