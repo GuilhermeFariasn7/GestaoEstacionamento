@@ -48,27 +48,29 @@ def run_dashboard():
 
 
 def open_browser():
-    """Abre o dashboard e o editor de ROI automaticamente, cada um em
-    uma aba, depois que os serviços iniciam.
-
-    Repare que o editor de ROI é servido pela própria API do dashboard
-    (rota /roi em apiFlask_dev.py, porta 5000) — a roi_api.py na porta
-    5001 é só a API JSON de dados, não tem páginas HTML.
-    """
+    """Abre a página inicial correspondente ao modo de inicialização."""
     time.sleep(2)
 
     dashboard_url = f"http://{HOST}:{DASHBOARD_PORT}"
     roi_editor_url = f"http://{HOST}:{DASHBOARD_PORT}/roi"
+    tests_url = f"http://{HOST}:{DASHBOARD_PORT}/tests"
+    open_page = os.environ.get("SMART_PARKING_OPEN_PAGE", "dashboard").lower()
 
     print()
     print("------------------------------------------------------------")
-    print(f"Dashboard    : {dashboard_url}")
-    print(f"Editor ROI   : {roi_editor_url}")
+    print(f"Dashboard     : {dashboard_url}")
+    print(f"Editor ROI    : {roi_editor_url}")
+    print(f"Testes TCC    : {tests_url}")
     print(f"ROI API (JSON): http://{HOST}:{ROI_PORT}")
     print("------------------------------------------------------------")
     print()
-    print("Abrindo o navegador...")
 
+    if open_page == "tests":
+        print("Abrindo somente a página de testes do TCC...")
+        webbrowser.open(tests_url)
+        return
+
+    print("Abrindo o dashboard e o editor de ROI...")
     webbrowser.open(dashboard_url)
     time.sleep(0.5)
     webbrowser.open_new_tab(roi_editor_url)

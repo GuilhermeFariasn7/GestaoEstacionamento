@@ -198,6 +198,23 @@ def roi_editor():
     )
 
 
+@app.route("/tests")
+def tests_page():
+    """Página independente para os experimentos e testes do TCC.
+
+    Esta página não faz parte do fluxo do usuário final e não é aberta
+    automaticamente pelo sistema. Pode ser acessada diretamente por
+    http://127.0.0.1:5000/tests.
+    """
+    return render_template("tests.html")
+
+
+@app.route("/tests/<job_id>/review")
+def test_review_page(job_id):
+    """Página de avaliação manual pertencente exclusivamente ao módulo de testes."""
+    return render_template("test_review.html", job_id=job_id)
+
+
 @app.route("/data")
 def get_data():
     """Retorna o estado atual das vagas em JSON."""

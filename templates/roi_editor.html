@@ -21,17 +21,13 @@
     <!-- ========================================================= -->
     <nav class="navbar">
         <div class="container-fluid">
-            <a class="navbar-brand" href="/">
-                <span class="sp-brand-icon">
-                    <i class="bi bi-bounding-box-circles"></i>
-                </span>
-                <div class="sp-brand-info">
-                    <span class="sp-brand-subtitle">Configuração de vagas</span>
-                </div>
-            </a>
-            
+            <div class="sp-brand-info">
+                <span class="sp-brand-subtitle">Configuração de vagas</span>
+            </div>
+
             <div class="ms-auto">
                 <span class="badge-status-nav" id="apiStatus">API</span>
+
                 <button class="btn-outline-light" type="button" data-bs-toggle="modal" data-bs-target="#settingsModal">
                     <i class="bi bi-gear"></i>
                     <span>Configurações</span>
@@ -211,12 +207,58 @@
                                 <label for="envName">Nome do ambiente</label>
                                 <input class="form-control" id="envName" placeholder="Ex.: estacionamento">
                             </div>
+
                             <div class="form-group">
-                                <label for="envSource">Fonte da câmera/vídeo</label>
-                                <input class="form-control" id="envSource" placeholder="Ex.: 0 ou data/camera.mp4">
+                                <label for="envSourceMode">Tipo de fonte</label>
+                                <select class="form-control" id="envSourceMode">
+                                    <option value="file">Arquivo de vídeo</option>
+                                    <option value="url">Câmera IP / RTSP / URL</option>
+                                    <option value="webcam">Webcam local</option>
+                                </select>
                             </div>
                         </div>
-                        <div class="form-text">Use <strong>0</strong> para a primeira câmera conectada.</div>
+
+                        <!-- Arquivo de vídeo -->
+                        <div class="form-group" id="videoFileGroup">
+                            <label for="envVideoFile">Selecionar vídeo</label>
+                            <input class="form-control" id="envVideoFile" type="file" accept="video/*">
+                            <div class="form-text" id="videoFileName">Nenhum arquivo selecionado.</div>
+                        </div>
+
+                        <!-- Câmera IP / RTSP / URL -->
+                        <div class="form-group d-none" id="cameraUrlGroup">
+                            <label for="envCameraUrl">Endereço da câmera</label>
+                            <input class="form-control" id="envCameraUrl"
+                                placeholder="rtsp://usuario:senha@192.168.0.10:554/stream">
+                            <div class="form-text">
+                                Aceita RTSP, HTTP, HTTPS ou qualquer URL que o OpenCV consiga abrir.
+                                Ex.: <code>rtsp://admin:senha@192.168.0.10:554/Streaming/Channels/101</code>
+                            </div>
+                        </div>
+
+                        <!-- Webcam local -->
+                        <div class="form-group d-none" id="webcamGroup">
+                            <label for="envCameraIndex">Índice da webcam</label>
+                            <input class="form-control" id="envCameraIndex" type="number" min="0" value="0"
+                                placeholder="0">
+                            <div class="form-text">Use <strong>0</strong> para a primeira webcam conectada.</div>
+                        </div>
+
+                        <!-- Valor final enviado à API -->
+                        <input type="hidden" id="envSource" value="">
+
+                        <div class="form-group form-check mt-3">
+                            <input type="checkbox" class="form-check-input" id="stabilizeToggle">
+                            <label class="form-check-label" for="stabilizeToggle">
+                                Câmera/vídeo em movimento (estabilizar vagas)
+                            </label>
+                            <div class="form-text">
+                                Ative se a câmera balançar (ex.: câmera 360°) ou o vídeo tiver a
+                                cena em movimento. O sistema passa a rastrear pontos da imagem
+                                para acompanhar a posição real das vagas, em vez de manter os
+                                pixels fixos. Precisa de um frame de referência capturado.
+                            </div>
+                        </div>
                     </section>
                 </div>
 

@@ -221,3 +221,9 @@ bkp/
 yolo12x.pt
 data/
 reference_frames
+
+# Vídeos enviados pela tela de testes
+data/test_uploads/
+
+# Resultados dos testes
+test_results/

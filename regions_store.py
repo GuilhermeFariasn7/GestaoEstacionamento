@@ -20,8 +20,9 @@ import json
 import os
 import threading
 
-CONFIG_PATH = "regions_config.json"
-REFERENCE_IMAGES_DIR = "reference_frames"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_PATH = os.path.join(BASE_DIR, "regions_config.json")
+REFERENCE_IMAGES_DIR = os.path.join(BASE_DIR, "reference_frames")
 _lock = threading.Lock()
 
 
