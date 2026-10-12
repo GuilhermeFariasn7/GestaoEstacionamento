@@ -448,6 +448,27 @@ def get_reference_image(name):
 
 @app.route(
     "/api/tests",
+    methods=["GET"]
+)
+def list_tests():
+    """
+    Histórico de testes já executados, mais recentes primeiro.
+
+    Usado pela página de Testes para montar a tabela de comparação
+    entre vídeos/ambientes (acurácia, precisão, status de cada teste).
+    """
+    try:
+        limit = int(request.args.get("limit", 200))
+    except (TypeError, ValueError):
+        limit = 200
+
+    return jsonify(
+        test_runner.list_jobs(limit=max(1, limit))
+    )
+
+
+@app.route(
+    "/api/tests",
     methods=["POST"]
 )
 def create_test():

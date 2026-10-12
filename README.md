@@ -24,11 +24,41 @@ A partir do gabarito são calculados:
 
 As métricas são calculadas por vaga e no conjunto completo e ficam disponíveis em `metrics.json` e `metrics.csv`.
 
-### Movimento da câmera/vídeo
+### Movimento da câmera e câmeras 360°/panorâmicas
 
-A estabilização é opcional por teste. O sistema usa os pontos de referência da imagem salva do ambiente para estimar uma transformação entre a referência e o frame atual. A implementação usa homografia com RANSAC e possui fallback para transformação afim parcial quando a homografia não é confiável.
+A estabilização é opcional por ambiente (editor de ROI → "Câmera/vídeo em movimento") e pode ser forçada por teste. O sistema casa pontos ORB do frame atual com o frame de referência do ambiente e estima o movimento da câmera com o **modelo adequado ao tipo de imagem**, escolhido em "Tipo de câmera / imagem":
 
-A estabilização deve ser entendida como compensação de movimento da imagem. Ela **não é correção de distorção fisheye**. Em deslocamentos grandes, mudanças fortes de perspectiva ou panoramas 360° com distorção e mudança de projeção, a correspondência pode deixar de ser confiável; o resultado registra essa condição em `tracking_estavel` e `match_count` para permitir que o comportamento seja analisado nos testes.
+| Tipo | Modelo de movimento | Observação |
+|---|---|---|
+| Convencional (perspectiva) | Homografia + RANSAC (fallback afim) | Exato para câmera girando no próprio eixo |
+| 360° equirretangular (2:1) | Rotação 3D (Kabsch + RANSAC) sobre a esfera | Trata vagas que cruzam a emenda esquerda/direita |
+| 360° olho de peixe | Rotação 3D, modelo equidistante | Informe o FOV da lente (ex.: 180°–220°) |
+| Panorâmica cilíndrica | Rotação 3D, modelo cilíndrico | Informe o FOV horizontal |
+
+Nas imagens 360° e panorâmicas, a rotação da câmera não é uma homografia: um giro horizontal faz a cena "dar a volta" na emenda e inclinações curvam as retas. Por isso cada pixel é convertido em um raio 3D (`camera_models.py`), a rotação é estimada entre os raios e as vagas (com as arestas subdivididas, para poderem se curvar) são reprojetadas.
+
+Etapas adicionais (`roi_stabilizer.py`):
+
+- **Refinamento local por vaga**: mediana do erro residual dos pontos próximos de cada vaga, compensando paralaxe e FOV aproximado.
+- **Suavização adaptativa**: amortece o tremor, mas segue sem atraso movimentos reais da câmera.
+- **Rastreamento encadeado**: se o frame não casar com a referência (luz, borrão), casa com o último frame bem rastreado e compõe as transformações.
+- **Máscara do nadir na 360°**: ignora os 12% inferiores (tripé/suporte, que se move junto com a câmera). Ajustável por `mask_bottom` em `__detection__`.
+- **Vagas fora de vista**: se a câmera girar e menos de 50% da vaga ficar no quadro, ela é marcada como fora de vista (dashboard: `visible: false`; testes: `fora_de_vista`, excluída das métricas) em vez de ser reportada como livre.
+- **Resolução diferente**: o vídeo pode ter resolução diferente do frame de referência; as coordenadas são escaladas.
+
+Em validação com rotações sintéticas conhecidas (imagem 3840×1920), o erro máximo dos vértices das vagas ficou abaixo de 2 px na projeção equirretangular, inclusive com giro de 170° cruzando a emenda; a homografia original errava entre 76 e 328 px nos mesmos casos.
+
+Os testes registram por amostra `tracking_estavel`, `match_count`, `inliers`, `modo_tracking` (`referencia`, `encadeado`, `mantido`), `movimento_camera` (graus ou pixels) e `vagas_fora_de_vista`.
+
+**Limitações**: o modelo assume que a câmera gira/balança no suporte; deslocamentos grandes da câmera no espaço geram paralaxe apenas parcialmente compensada. A estabilização não remove a distorção da imagem para o YOLO. Vídeo 360° "duplo" (duas lentes lado a lado, sem costura) não é suportado: exporte em equirretangular.
+
+### Diagnóstico da estabilização
+
+```
+python diagnostico_estabilizacao.py <ambiente> [--projection equirectangular] [--fov 190] [--step 2] [--show]
+```
+
+Roda apenas o rastreamento (sem YOLO) e salva em `diagnosticos/` um vídeo com as vagas na posição estimada e um CSV frame a frame. Útil para escolher a projeção correta e para comparar projeções nos resultados do TCC.
 
 ## Tela de testes do TCC
 

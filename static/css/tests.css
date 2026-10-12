@@ -461,6 +461,52 @@ body {
     color: #1a8c4a;
 }
 
+.sp-pill--running {
+    background: rgba(240, 165, 0, 0.15);
+    color: #a06a00;
+}
+
+/* ========================================================= */
+/* HISTÓRICO DE TESTES                                       */
+/* ========================================================= */
+.sp-history-body {
+    padding: 1.25rem 1.5rem;
+    overflow: auto;
+}
+
+.sp-history-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+    background: #fff;
+}
+
+.sp-history-table thead th {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #8888aa;
+    font-weight: 700;
+    text-align: left;
+    padding: 0.6rem 0.85rem;
+    border-bottom: 1px solid #eaedf2;
+    white-space: nowrap;
+}
+
+.sp-history-table tbody td {
+    padding: 0.6rem 0.85rem;
+    border-bottom: 1px solid #f0f2f5;
+    vertical-align: middle;
+}
+
+.sp-history-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.sp-history-table tbody tr:hover td {
+    background: #fafbfd;
+}
+
 /* ========================================================= */
 /* MODAL                                                     */
 /* ========================================================= */

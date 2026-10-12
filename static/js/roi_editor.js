@@ -48,11 +48,21 @@ let currentPoints = [];
 let editingName = null;
 let currentEnvironment = "";
 
-let detectionConfig = {
+const DEFAULT_DETECTION_CONFIG = {
     confidence: 0.4,
     fps: 5,
-    stabilize: false
+    stabilize: false,
+    projection: "perspective",
+    fov: null
 };
+
+/* FOV padrão sugerido para cada tipo de projeção. */
+const DEFAULT_FOV = {
+    fisheye: 180,
+    cylindrical: 180
+};
+
+let detectionConfig = { ...DEFAULT_DETECTION_CONFIG };
 
 let renamingName = null;
 
@@ -105,6 +115,9 @@ const els = {
     confidenceValue: document.getElementById("confidenceValue"),
     fpsInput: document.getElementById("fpsInput"),
     stabilizeToggle: document.getElementById("stabilizeToggle"),
+    projectionSelect: document.getElementById("projectionSelect"),
+    fovGroup: document.getElementById("fovGroup"),
+    fovInput: document.getElementById("fovInput"),
 
     pointCounter: document.getElementById("pointCounter"),
     editingIndicator: document.getElementById("editingIndicator"),
@@ -152,6 +165,16 @@ async function init() {
 
     els.testApiBtn.addEventListener("click", testApiConnection);
     els.apiUrl.addEventListener("change", persistApiUrl);
+
+    if (els.projectionSelect) {
+        els.projectionSelect.addEventListener("change", () => {
+            const projection = els.projectionSelect.value;
+            if (els.fovInput && DEFAULT_FOV[projection]) {
+                els.fovInput.value = DEFAULT_FOV[projection];
+            }
+            updateProjectionControls();
+        });
+    }
 
     if (els.confidenceRange) {
         els.confidenceRange.addEventListener("input", () => {
@@ -474,7 +497,10 @@ async function loadEnvironment(name) {
                 ? data.regions
                 : {};
 
-        /* Recupera a configuração da detecção. */
+        /* Recupera a configuração da detecção. Começa dos valores
+         * padrão para não herdar a configuração do ambiente anterior. */
+        detectionConfig = { ...DEFAULT_DETECTION_CONFIG };
+
         if (
             rawRegions[DETECTION_KEY] &&
             typeof rawRegions[DETECTION_KEY] === "object"
@@ -572,6 +598,27 @@ function applyDetectionConfigToInputs() {
     if (els.stabilizeToggle) {
         els.stabilizeToggle.checked = Boolean(detectionConfig.stabilize);
     }
+
+    if (els.projectionSelect) {
+        els.projectionSelect.value = detectionConfig.projection || "perspective";
+    }
+
+    if (els.fovInput) {
+        const projection = detectionConfig.projection || "perspective";
+        els.fovInput.value =
+            Number(detectionConfig.fov) || DEFAULT_FOV[projection] || 180;
+    }
+
+    updateProjectionControls();
+}
+
+function updateProjectionControls() {
+    if (!els.projectionSelect || !els.fovGroup) return;
+
+    const projection = els.projectionSelect.value;
+    const needsFov = projection === "fisheye" || projection === "cylindrical";
+
+    els.fovGroup.classList.toggle("d-none", !needsFov);
 }
 
 function readDetectionConfigFromInputs() {
@@ -587,10 +634,27 @@ function readDetectionConfigFromInputs() {
         ? Boolean(els.stabilizeToggle.checked)
         : Boolean(detectionConfig.stabilize);
 
+    const projection = els.projectionSelect
+        ? els.projectionSelect.value
+        : (detectionConfig.projection || "perspective");
+
+    let fov = null;
+    if (projection === "fisheye" || projection === "cylindrical") {
+        const value = els.fovInput ? parseFloat(els.fovInput.value) : NaN;
+        fov = Number.isFinite(value)
+            ? Math.min(360, Math.max(60, value))
+            : DEFAULT_FOV[projection];
+    }
+
     return {
+        /* Preserva chaves extras editadas manualmente no JSON
+         * (ex.: mask_bottom, smoothing). */
+        ...detectionConfig,
         confidence: Number.isFinite(confidence) ? confidence : 0.4,
         fps,
-        stabilize
+        stabilize,
+        projection,
+        fov
     };
 }
 

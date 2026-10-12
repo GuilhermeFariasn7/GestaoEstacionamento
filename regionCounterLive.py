@@ -16,7 +16,12 @@ um veículo seja considerado ausente quando o centro da detecção fica
 fora do polígono, mesmo estando visualmente sobre a vaga.
 """
 
+import cv2
 import numpy as np
+from shapely.affinity import translate
+from shapely.geometry import box as shapely_box
+from shapely.geometry import Polygon as ShapelyPolygon
+from shapely.ops import unary_union
 
 from ultralytics.solutions.solutions import (
     BaseSolution,
@@ -30,6 +35,14 @@ COLOR_FREE = (0, 200, 0)
 COLOR_OCCUPIED = (0, 0, 255)
 COLOR_TEXT = (255, 255, 255)
 COLOR_VEHICLE = (255, 200, 0)
+COLOR_HIDDEN = (140, 140, 140)
+COLOR_TRACK_OK = (0, 200, 0)
+COLOR_TRACK_LOST = (0, 165, 255)
+
+# Fração mínima da vaga que precisa estar dentro da imagem para ela ser
+# avaliada. Abaixo disso (câmera girou e a vaga saiu do quadro) a vaga
+# fica "fora de vista" em vez de ser reportada, incorretamente, como livre.
+MIN_VISIBLE_FRACTION = 0.5
 
 
 # ------------------------------------------------------------------
@@ -70,28 +83,95 @@ class RegionCounterLive(BaseSolution):
         super().__init__(**kwargs)
         self.stabilizer = stabilizer
         self.counting_regions = []
+        self._prepared_shape = None
         self._prepare_regions()
 
     # ------------------------------------------------------------------
     # Preparação das regiões
     # ------------------------------------------------------------------
 
-    def _prepare_regions(self, points_by_name=None):
+    def _prepare_regions(self, points_by_name=None, frame_shape=None, wrap_width=None):
         """
         Prepara os polígonos utilizados para verificar ocupação.
+
+        Args:
+            points_by_name: pontos de cada vaga (padrão: os configurados).
+            frame_shape: (altura, largura) do frame, para recortar as
+                vagas na borda da imagem e calcular a visibilidade.
+            wrap_width: largura da imagem quando ela é 360°
+                equirretangular. Nesse caso, uma vaga que cruza a emenda
+                (lado esquerdo/direito) é dividida em duas partes, uma
+                em cada borda da imagem, e as duas contam como a mesma
+                vaga.
         """
         points_by_name = points_by_name or self.region
         self.counting_regions = []
 
         for region_name, region_points in points_by_name.items():
-            polygon = self.Polygon(region_points)
+            raw = ShapelyPolygon(region_points)
+            if not raw.is_valid:
+                raw = raw.buffer(0)
+
+            geometry = raw
+            visible_fraction = 1.0
+
+            if frame_shape is not None and raw.area > 0:
+                height, width = frame_shape[:2]
+                frame_box = shapely_box(0, 0, width, height)
+
+                if wrap_width:
+                    pieces = [
+                        translate(raw, xoff=shift * wrap_width).intersection(frame_box)
+                        for shift in (-1, 0, 1)
+                    ]
+                    geometry = unary_union([
+                        piece for piece in pieces if not piece.is_empty
+                    ])
+                else:
+                    geometry = raw.intersection(frame_box)
+
+                visible_fraction = geometry.area / raw.area if raw.area else 0.0
+
+            visible = (
+                not geometry.is_empty and
+                visible_fraction >= MIN_VISIBLE_FRACTION
+            )
+
             self.counting_regions.append({
                 "name": region_name,
                 "points": region_points,
-                "polygon": polygon,
-                "prepared_polygon": self.prep(polygon),
+                "polygon": geometry if not geometry.is_empty else raw,
+                "visible": visible,
+                "visible_fraction": round(float(visible_fraction), 3),
                 "counts": 0
             })
+
+    @staticmethod
+    def _polygon_parts(geometry):
+        """Lista de contornos (para desenhar), mesmo para MultiPolygon."""
+        if geometry.is_empty:
+            return []
+        geoms = getattr(geometry, "geoms", [geometry])
+        parts = []
+        for geom in geoms:
+            exterior = getattr(geom, "exterior", None)
+            if exterior is not None and len(exterior.coords) >= 3:
+                parts.append(np.array(exterior.coords, dtype=np.int32))
+        return parts
+
+    def _draw_stabilizer_info(self, image):
+        info = self.stabilizer.diagnostics()
+        color = COLOR_TRACK_OK if info["tracking"] else COLOR_TRACK_LOST
+        text = (
+            f'{info["projection"]} | {info["mode"]} | '
+            f'inliers {info["inliers"]}/{info["matches"]} | mov {info["motion"]}'
+        )
+        scale = max(0.5, image.shape[1] / 2200)
+        thickness = max(1, int(round(scale * 2)))
+        cv2.putText(image, text, (12, int(32 * scale)), cv2.FONT_HERSHEY_SIMPLEX,
+                    scale, (0, 0, 0), thickness + 2, cv2.LINE_AA)
+        cv2.putText(image, text, (12, int(32 * scale)), cv2.FONT_HERSHEY_SIMPLEX,
+                    scale, color, thickness, cv2.LINE_AA)
 
     # ------------------------------------------------------------------
     # Análise de cada frame
@@ -108,17 +188,26 @@ class RegionCounterLive(BaseSolution):
         # Primeiro o modelo faz a detecção/rastreamento dos veículos.
         self.extract_tracks(im0)
 
+        # A posição das vagas é atualizada ANTES de qualquer desenho,
+        # para o estabilizador ver o frame original.
+        if self.stabilizer is not None:
+            current_points = self.stabilizer.update(im0)
+            self._prepare_regions(
+                current_points,
+                frame_shape=im0.shape,
+                wrap_width=self.stabilizer.wrap_width
+            )
+        elif self._prepared_shape != im0.shape[:2]:
+            self._prepare_regions(frame_shape=im0.shape)
+            self._prepared_shape = im0.shape[:2]
+        else:
+            for region in self.counting_regions:
+                region["counts"] = 0
+
         annotator = SolutionAnnotator(
             im0,
             line_width=self.line_width
         )
-
-        if self.stabilizer is not None:
-            current_points = self.stabilizer.update(im0)
-            self._prepare_regions(current_points)
-        else:
-            for region in self.counting_regions:
-                region["counts"] = 0
 
         # ---------------------------------------------------------
         # Identificação dos veículos detectados
@@ -158,7 +247,7 @@ class RegionCounterLive(BaseSolution):
                 if vehicle_area <= 0:
                     continue
 
-                vehicle_polygon = self.Polygon([
+                vehicle_polygon = ShapelyPolygon([
                     (left, top),
                     (right, top),
                     (right, bottom),
@@ -173,6 +262,9 @@ class RegionCounterLive(BaseSolution):
                 best_overlap = 0.0
 
                 for region in self.counting_regions:
+                    if not region["visible"]:
+                        continue
+
                     intersection = vehicle_polygon.intersection(
                         region["polygon"]
                     )
@@ -193,34 +285,45 @@ class RegionCounterLive(BaseSolution):
         # Desenho das vagas
         # ---------------------------------------------------------
 
+        image = annotator.im
+
         for region in self.counting_regions:
             occupied = region["counts"] > 0
-            color = (
-                COLOR_OCCUPIED
-                if occupied
-                else COLOR_FREE
-            )
-            status = (
-                "ocupada"
-                if occupied
-                else "livre"
-            )
-            label = f'{region["name"]}: {status}'
 
-            annotator.draw_region(
-                region["points"],
-                color,
-                self.line_width * 2
-            )
-            annotator.text_label(
-                region["polygon"].bounds,
-                label=label,
-                color=color,
-                txt_color=COLOR_TEXT
-            )
+            if not region["visible"]:
+                color = COLOR_HIDDEN
+                status = "fora de vista"
+            elif occupied:
+                color = COLOR_OCCUPIED
+                status = "ocupada"
+            else:
+                color = COLOR_FREE
+                status = "livre"
+
+            parts = self._polygon_parts(region["polygon"])
+            if parts:
+                cv2.polylines(image, parts, True, color, self.line_width * 2, cv2.LINE_AA)
+
+                # Rótulo na maior parte visível da vaga.
+                largest = max(parts, key=lambda part: cv2.contourArea(part))
+                x1, y1 = largest.min(axis=0)
+                x2, y2 = largest.max(axis=0)
+                annotator.text_label(
+                    (float(x1), float(y1), float(x2), float(y2)),
+                    label=f'{region["name"]}: {status}',
+                    color=color,
+                    txt_color=COLOR_TEXT
+                )
+
+        if self.stabilizer is not None:
+            self._draw_stabilizer_info(image)
 
         self.region_counts = {
             region["name"]: region["counts"]
+            for region in self.counting_regions
+        }
+        self.region_visibility = {
+            region["name"]: region["visible"]
             for region in self.counting_regions
         }
 

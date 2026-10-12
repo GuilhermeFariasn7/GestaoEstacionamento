@@ -259,6 +259,28 @@
                                 pixels fixos. Precisa de um frame de referência capturado.
                             </div>
                         </div>
+
+                        <div class="form-row mt-2" id="projectionGroup">
+                            <div class="form-group">
+                                <label for="projectionSelect">Tipo de câmera / imagem</label>
+                                <select class="form-control" id="projectionSelect">
+                                    <option value="perspective">Convencional (perspectiva)</option>
+                                    <option value="equirectangular">360° equirretangular (panorama 2:1)</option>
+                                    <option value="fisheye">360° olho de peixe (câmera de teto)</option>
+                                    <option value="cylindrical">Panorâmica cilíndrica</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group d-none" id="fovGroup">
+                                <label for="fovInput">Campo de visão (graus)</label>
+                                <input class="form-control" id="fovInput" type="number" min="60" max="360" step="1" value="180">
+                            </div>
+                        </div>
+                        <div class="form-text" id="projectionHint">
+                            Define como a câmera planifica a imagem. Para câmeras 360° e panorâmicas o
+                            movimento é estimado como uma rotação 3D da câmera, o que mantém as vagas
+                            no lugar mesmo quando a cena dá a volta na emenda da imagem.
+                        </div>
                     </section>
                 </div>
 

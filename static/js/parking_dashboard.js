@@ -1669,12 +1669,15 @@ function renderStatus() {
     );
 
 
+    /* visible === false: a câmera girou e a vaga saiu do quadro.
+     * O estado dela é desconhecido, então não entra como livre. */
     const free =
         latestStatus.filter(
             space =>
                 Number(
                     space.used
-                ) === 0
+                ) === 0 &&
+                space.visible !== false
         ).length;
 
 
@@ -1861,6 +1864,12 @@ function renderStatus() {
                     ? "Livre"
                     : "Ocupada";
 
+            if (space.visible === false) {
+                status.className = "space-status text-secondary";
+                status.textContent = "Fora de vista";
+                card.style.opacity = "0.55";
+            }
+
 
             body.append(
                 icon,
@@ -1991,6 +2000,11 @@ function renderVagasSidebar() {
                 isFree
                     ? "Livre"
                     : "Ocupada";
+
+            if (space.visible === false) {
+                statusSpan.textContent = "Fora de vista";
+                item.style.opacity = "0.55";
+            }
 
 
             item.append(

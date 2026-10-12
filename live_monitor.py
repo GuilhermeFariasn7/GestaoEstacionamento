@@ -22,8 +22,11 @@ import threading
 import cv2
 
 import regions_store as store
-from regionCounterLive import RegionCounterLive
-from roi_stabilizer import RegionStabilizer
+from roi_stabilizer import build_stabilizer_for_environment
+
+# RegionCounterLive (e o ultralytics/YOLO que ela carrega) é importado
+# sob demanda, dentro da função que efetivamente inicia o monitoramento
+# — ver comentário equivalente em test_runner.py.
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -67,44 +70,18 @@ def _open_source(source):
     return cv2.VideoCapture(source)
 
 
-def _build_stabilizer(environment_name):
+def _build_stabilizer(environment_name, coordinates):
     """
     Monta o estabilizador de vagas para o ambiente, se ele tiver sido
-    configurado para isso.
-
-    A estabilização é opt-in por ambiente (chave "stabilize" dentro
-    de __detection__, gravada pelo editor de ROI) -- ambientes que
-    não pedirem isso continuam funcionando exatamente como antes,
-    com a vaga fixa nos pixels configurados.
+    configurado para isso (ver roi_stabilizer.build_stabilizer_for_environment).
+    Ambientes sem estabilização continuam com a vaga fixa em pixel.
     """
 
-    detection_config = store.get_detection_config(environment_name)
-
-    if not detection_config.get("stabilize"):
-        return None
-
-    reference_path = store.get_reference_image_path(environment_name)
-
-    if not reference_path:
-        print(
-            f"[MONITOR] Estabilização pedida para '{environment_name}', "
-            "mas não há imagem de referência salva (capture um frame "
-            "no editor de ROI antes). Monitorando sem estabilização."
-        )
-        return None
-
-    reference_frame = cv2.imread(reference_path)
-
-    if reference_frame is None:
-        print(
-            f"[MONITOR] Não foi possível ler a imagem de referência de "
-            f"'{environment_name}'. Monitorando sem estabilização."
-        )
-        return None
-
-    coordinates = store.get_regions_for_program(environment_name)
-
-    return RegionStabilizer(reference_frame, coordinates)
+    return build_stabilizer_for_environment(
+        environment_name,
+        coordinates,
+        log=lambda message: print(f"[MONITOR] {message}")
+    )
 
 
 def _save_region_status(data):
@@ -147,13 +124,23 @@ def _run(environment_name, stop_event):
         capture.release()
         return
 
-    stabilizer = _build_stabilizer(environment_name)
+    stabilizer = _build_stabilizer(environment_name, coordinates)
+
+    detection_config = store.get_detection_config(environment_name)
+
+    try:
+        confidence = float(detection_config.get("confidence", 0.4))
+    except (TypeError, ValueError):
+        confidence = 0.4
+
+    from regionCounterLive import RegionCounterLive
 
     live_counter = RegionCounterLive(
         show=True,
         region=coordinates,
         model="yolo12x.pt",
         classes=[2],
+        conf=confidence,
         stabilizer=stabilizer
     )
 
@@ -183,8 +170,16 @@ def _run(environment_name, stop_event):
 
                 if detection_counter % SAVE_JSON_EVERY_N_DETECTIONS == 0:
 
+                    visibility = getattr(live_counter, "region_visibility", {})
+
+                    # "visible": False indica que a câmera girou e a vaga
+                    # saiu do quadro -- o estado dela é desconhecido.
                     result = [
-                        {"id": key, "used": value}
+                        {
+                            "id": key,
+                            "used": value,
+                            "visible": bool(visibility.get(key, True))
+                        }
                         for key, value in results.region_counts.items()
                     ]
 

@@ -10,8 +10,14 @@ import uuid
 import cv2
 
 import regions_store as store
-from regionCounterLive import RegionCounterLive
-from roi_stabilizer import RegionStabilizer
+from roi_stabilizer import build_stabilizer_for_environment
+
+# RegionCounterLive (e, por dentro dela, o ultralytics/YOLO) só é
+# importado dentro de _run_job, na hora em que um teste é de fato
+# executado. Isso evita que um problema no ultralytics impeça a API
+# inteira de subir, já que roi_api.py importa este módulo no topo do
+# arquivo apenas para expor as rotas de configuração/histórico, que
+# não dependem do YOLO.
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -19,7 +25,8 @@ RESULTS_DIR = os.path.join(BASE_DIR, "test_results")
 
 _FIXED_COLUMNS = {
     "sample", "frame", "timestamp_s", "tracking_estavel",
-    "match_count", "image"
+    "match_count", "image", "inliers", "modo_tracking",
+    "movimento_camera", "vagas_fora_de_vista"
 }
 _THUMBNAIL_MAX_WIDTH = 1200
 
@@ -67,20 +74,12 @@ def _open_source(source):
 
 
 def _build_stabilizer(environment_name, coordinates, enabled=None):
-    config = store.get_detection_config(environment_name)
-    stabilize = config.get("stabilize", False) if enabled is None else bool(enabled)
-    if not stabilize:
-        return None
-
-    reference_path = store.get_reference_image_path(environment_name)
-    if not reference_path:
-        return None
-
-    reference_frame = cv2.imread(reference_path)
-    if reference_frame is None:
-        return None
-
-    return RegionStabilizer(reference_frame, coordinates)
+    return build_stabilizer_for_environment(
+        environment_name,
+        coordinates,
+        enabled=enabled,
+        log=lambda message: print(f"[TESTE] {message}")
+    )
 
 
 def _save_thumbnail(frame, path):
@@ -94,7 +93,8 @@ def _save_thumbnail(frame, path):
 def _write_csv(csv_path, region_names, rows):
     fieldnames = [
         "sample", "frame", "timestamp_s", "tracking_estavel",
-        "match_count", "image"
+        "match_count", "inliers", "modo_tracking", "movimento_camera",
+        "vagas_fora_de_vista", "image"
     ] + list(region_names)
     with open(csv_path, "w", newline="", encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
@@ -103,7 +103,10 @@ def _write_csv(csv_path, region_names, rows):
 
 
 def _build_summary(region_names, rows):
-    summary = {name: {"ocupada": 0, "livre": 0} for name in region_names}
+    summary = {
+        name: {"ocupada": 0, "livre": 0, "fora_de_vista": 0}
+        for name in region_names
+    }
     for row in rows:
         for name in region_names:
             status = row.get(name)
@@ -115,6 +118,47 @@ def _build_summary(region_names, rows):
 def _write_metadata(job_dir, metadata):
     with open(os.path.join(job_dir, "metadata.json"), "w", encoding="utf-8") as file:
         json.dump(metadata, file, ensure_ascii=False, indent=2)
+
+
+def _write_status_file(job_dir, job):
+    """
+    Grava em disco (status.json) o estado atual do job — em particular
+    o status ("running"/"completed"/"error") e a mensagem real de erro.
+
+    Sem isso, se o servidor for reiniciado enquanto um job está em
+    execução ou logo após ele falhar, a mensagem de erro (guardada só
+    em memória em `_jobs`) se perde e o histórico passa a mostrar um
+    erro genérico ("Resultado não encontrado.") em vez do motivo real.
+    """
+    payload = {
+        "id": job.get("id"),
+        "environment": job.get("environment"),
+        "status": job.get("status"),
+        "progress": job.get("progress"),
+        "rows": job.get("rows"),
+        "error": job.get("error"),
+        "summary": job.get("summary"),
+        "source": job.get("source"),
+        "created_at": job.get("created_at"),
+    }
+    try:
+        with open(os.path.join(job_dir, "status.json"), "w", encoding="utf-8") as file:
+            json.dump(payload, file, ensure_ascii=False, indent=2)
+    except OSError:
+        # A gravação do status é um "melhor esforço": se falhar (ex.:
+        # disco cheio), não deve derrubar o teste em andamento.
+        pass
+
+
+def _read_status_file(job_dir):
+    path = os.path.join(job_dir, "status.json")
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as file:
+            return json.load(file)
+    except (OSError, json.JSONDecodeError):
+        return None
 
 
 def _run_job(job_id, environment_name, confidence, frame_step, source_override, stabilize):
@@ -138,6 +182,12 @@ def _run_job(job_id, environment_name, confidence, frame_step, source_override, 
         if not source:
             raise ValueError("Nenhuma fonte de vídeo informada ou salva no ambiente.")
 
+        # Guarda a fonte já aqui (e não só ao final, com sucesso), para
+        # que o histórico mostre qual vídeo foi usado mesmo quando o
+        # teste falha (ex.: fonte inválida, arquivo não encontrado).
+        with _jobs_lock:
+            job["source"] = source
+
         capture = _open_source(source)
         if not capture.isOpened():
             raise RuntimeError(f"Não foi possível abrir a fonte: {source}")
@@ -145,6 +195,8 @@ def _run_job(job_id, environment_name, confidence, frame_step, source_override, 
         total_frames = int(capture.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
         video_fps = capture.get(cv2.CAP_PROP_FPS) or 0
         stabilizer = _build_stabilizer(environment_name, coordinates, stabilize)
+
+        from regionCounterLive import RegionCounterLive
 
         counter = RegionCounterLive(
             region=coordinates,
@@ -167,6 +219,11 @@ def _run_job(job_id, environment_name, confidence, frame_step, source_override, 
             "confidence": confidence,
             "frame_step": frame_step,
             "stabilize": bool(stabilizer is not None),
+            "projection": (
+                stabilizer.projection if stabilizer is not None
+                else store.get_detection_config(environment_name).get("projection", "perspective")
+            ),
+            "fov": store.get_detection_config(environment_name).get("fov"),
             "created_at": time.time(),
             "regions": list(coordinates.keys())
         }
@@ -196,15 +253,34 @@ def _run_job(job_id, environment_name, confidence, frame_step, source_override, 
                     "match_count": (
                         stabilizer.last_match_count if stabilizer is not None else ""
                     ),
+                    "inliers": (
+                        stabilizer.last_inlier_count if stabilizer is not None else ""
+                    ),
+                    "modo_tracking": (
+                        stabilizer.tracking_mode if stabilizer is not None else ""
+                    ),
+                    "movimento_camera": (
+                        stabilizer.motion_magnitude if stabilizer is not None else ""
+                    ),
+                    "vagas_fora_de_vista": ";".join(
+                        name for name, visible in
+                        getattr(counter, "region_visibility", {}).items()
+                        if not visible
+                    ),
                     "image": image_name
                 }
 
+                visibility = getattr(counter, "region_visibility", {})
+
                 for name in coordinates:
-                    row[name] = (
-                        "ocupada"
-                        if results.region_counts.get(name, 0) > 0
-                        else "livre"
-                    )
+                    if not visibility.get(name, True):
+                        # A câmera girou e a vaga saiu do quadro: não há
+                        # como afirmar se está livre ou ocupada.
+                        row[name] = "fora_de_vista"
+                    elif results.region_counts.get(name, 0) > 0:
+                        row[name] = "ocupada"
+                    else:
+                        row[name] = "livre"
 
                 rows.append(row)
                 sample_index += 1
@@ -231,10 +307,16 @@ def _run_job(job_id, environment_name, confidence, frame_step, source_override, 
             job["summary"] = summary
             job["source"] = source
 
+        with _jobs_lock:
+            job_snapshot = dict(job)
+        _write_status_file(job_dir, job_snapshot)
+
     except Exception as error:
         with _jobs_lock:
             job["status"] = "error"
             job["error"] = str(error)
+            job_snapshot = dict(job)
+        _write_status_file(job_dir, job_snapshot)
     finally:
         if capture is not None:
             capture.release()
@@ -259,6 +341,13 @@ def start(environment_name, confidence=0.4, frame_step=5, source_override=None, 
             "dir": job_dir,
             "created_at": time.time()
         }
+        job_snapshot = dict(_jobs[job_id])
+
+    # Grava o status inicial imediatamente, para que mesmo um erro que
+    # aconteça antes de qualquer outra escrita em disco (ex.: ambiente
+    # não encontrado, fonte de vídeo vazia) já tenha um job_dir com
+    # status.json quando `_run_job` atualizá-lo no except.
+    _write_status_file(job_dir, job_snapshot)
 
     thread = threading.Thread(
         target=_run_job,
@@ -276,6 +365,24 @@ def get_status(job_id):
             job_dir = _safe_job_dir(job_id)
             if job_dir is None:
                 return None
+
+            # Preferimos o status.json: ele guarda o status e a mensagem
+            # de erro reais no momento em que o job terminou (ou falhou),
+            # mesmo que o servidor tenha sido reiniciado depois.
+            persisted = _read_status_file(job_dir)
+            if persisted is not None:
+                return {
+                    "id": job_id,
+                    "environment": persisted.get("environment", ""),
+                    "status": persisted.get("status", "error"),
+                    "progress": persisted.get("progress", 0),
+                    "rows": persisted.get("rows", 0),
+                    "error": persisted.get("error"),
+                    "summary": persisted.get("summary")
+                }
+
+            # Compatibilidade com jobs antigos, criados antes de existir
+            # o status.json: reconstrói uma estimativa a partir do CSV.
             metadata = _load_metadata(job_dir)
             _, rows = _read_rows(job_dir)
             return {
@@ -307,6 +414,87 @@ def get_csv_path(job_id):
         return None
     path = os.path.join(job_dir, "data.csv")
     return path if os.path.exists(path) else None
+
+
+def _read_metrics_summary(job_dir):
+    """Lê apenas o resumo (overall) do metrics.json, se ele já existir."""
+    path = os.path.join(job_dir, "metrics.json")
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as file:
+            metrics = json.load(file)
+    except (OSError, json.JSONDecodeError):
+        return None
+    return metrics.get("overall")
+
+
+def list_jobs(limit=200):
+    """
+    Histórico de todos os testes já executados, mais recentes primeiro.
+
+    Combina o que está registrado em disco (test_results/<ambiente>_<id>/,
+    lendo status.json e, quando existir, o metrics.json já calculado a
+    partir do gabarito) com o que ainda só existe em memória — assim o
+    histórico funciona tanto para jobs desta sessão quanto para jobs de
+    execuções anteriores do servidor.
+
+    Cada item retornado traz o suficiente para comparar testes entre si
+    (ambiente, fonte de vídeo, status, acurácia/precisão quando já
+    avaliadas, e se o gabarito manual já foi preenchido).
+    """
+    entries = {}
+
+    if os.path.isdir(RESULTS_DIR):
+        for name in os.listdir(RESULTS_DIR):
+            job_dir = os.path.join(RESULTS_DIR, name)
+            if not os.path.isdir(job_dir):
+                continue
+
+            status = _read_status_file(job_dir)
+            metadata = _load_metadata(job_dir)
+            job_id = (status or {}).get("id") or metadata.get("id")
+            if not job_id:
+                continue
+
+            overall = _read_metrics_summary(job_dir)
+
+            entries[job_id] = {
+                "id": job_id,
+                "environment": (status or {}).get("environment") or metadata.get("environment", ""),
+                "source": (status or {}).get("source") or metadata.get("source", ""),
+                "status": (status or {}).get("status", "desconhecido"),
+                "rows": (status or {}).get("rows", 0),
+                "error": (status or {}).get("error"),
+                "created_at": (status or {}).get("created_at") or metadata.get("created_at"),
+                "accuracy": overall.get("accuracy") if overall else None,
+                "precision": overall.get("precision") if overall else None,
+                "has_ground_truth": overall is not None
+            }
+
+    with _jobs_lock:
+        for job_id, job in _jobs.items():
+            if job_id in entries:
+                continue
+            entries[job_id] = {
+                "id": job_id,
+                "environment": job.get("environment", ""),
+                "source": job.get("source", ""),
+                "status": job.get("status", "desconhecido"),
+                "rows": job.get("rows", 0),
+                "error": job.get("error"),
+                "created_at": job.get("created_at"),
+                "accuracy": None,
+                "precision": None,
+                "has_ground_truth": False
+            }
+
+    jobs = sorted(
+        entries.values(),
+        key=lambda item: item.get("created_at") or 0,
+        reverse=True
+    )
+    return jobs[:limit]
 
 
 def _read_rows(job_dir):
@@ -483,6 +671,10 @@ def compute_metrics(job_id):
 
         for name in region_names:
             if name not in truth_row:
+                continue
+            # Vagas fora de vista não entram na matriz de confusão: o
+            # sistema não emitiu uma decisão para elas.
+            if row.get(name) == "fora_de_vista":
                 continue
             sample_has_truth = True
             annotated_cells += 1

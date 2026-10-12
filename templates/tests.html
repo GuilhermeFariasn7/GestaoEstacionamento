@@ -35,10 +35,51 @@
 
                 <!-- Ambiente -->
                 <div class="sp-block">
+                    <h2 class="sp-block-title">
+                        <i class="bi bi-geo-alt"></i>Ambiente
+                    </h2>
+
+                    <div class="sp-field">
+                        <label class="sp-label" for="envSelect">Ambiente a testar</label>
+                        <select class="form-control" id="envSelect">
+                            <option value="">Carregando ambientes...</option>
+                        </select>
+                        <p class="form-text" id="envInfoText">Selecione um ambiente configurado.</p>
+                    </div>
 
                     <button id="toggleConfigBtn" type="button" class="btn btn-outline-secondary sp-btn-block">
-                        <i class="bi bi-bounding-box me-1"></i>Configurar vagas
+                        <i class="bi bi-bounding-box me-1"></i>Configurar vagas deste ambiente
                     </button>
+                </div>
+
+                <!-- Fonte de vídeo -->
+                <div class="sp-block">
+                    <h2 class="sp-block-title">
+                        <i class="bi bi-camera-video"></i>Fonte de vídeo
+                    </h2>
+
+                    <div class="sp-field">
+                        <label class="sp-label" for="sourceMode">Vídeo a analisar</label>
+                        <select class="form-control" id="sourceMode">
+                            <option value="saved">Usar a fonte salva no ambiente</option>
+                            <option value="upload">Enviar um vídeo novo</option>
+                            <option value="path">Digitar outro caminho/URL</option>
+                        </select>
+                        <p class="form-text">
+                            Enviar outro vídeo permite testar as mesmas vagas contra uma gravação
+                            diferente (outro horário, ângulo ou câmera), para comparar depois.
+                        </p>
+                    </div>
+
+                    <div class="sp-field d-none" id="sourceUploadGroup">
+                        <label class="sp-label" for="sourceVideoFile">Selecionar vídeo</label>
+                        <input class="form-control" id="sourceVideoFile" type="file" accept="video/*">
+                    </div>
+
+                    <div class="sp-field d-none" id="sourcePathGroup">
+                        <label class="sp-label" for="sourcePathInput">Caminho ou URL do vídeo</label>
+                        <input class="form-control" id="sourcePathInput" placeholder="Ex.: data/video_noite.mp4">
+                    </div>
                 </div>
 
                 <!-- Parâmetros -->
@@ -74,6 +115,13 @@
                     </div>
                 </div>
 
+                <!-- Histórico -->
+                <div class="sp-block">
+                    <button id="toggleHistoryBtn" type="button" class="btn btn-outline-secondary sp-btn-block">
+                        <i class="bi bi-clock-history me-1"></i>Ver histórico e comparar testes
+                    </button>
+                </div>
+
             </div><!-- /.sp-form-scroll -->
 
             <footer class="sp-form-footer">
@@ -105,6 +153,28 @@
             <div class="modal-content sp-modal">
                 <div class="modal-body sp-modal-body">
                     <iframe id="configFrame" src="about:blank" title="Configuração de vagas"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: histórico de testes -->
+    <div class="modal fade" id="historyModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content sp-modal">
+                <div class="sp-modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-clock-history me-2"></i>Histórico de testes
+                    </h5>
+                    <div>
+                        <button id="refreshHistoryBtn" type="button" class="btn btn-outline-secondary btn-sm me-2">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                    </div>
+                </div>
+                <div class="modal-body sp-history-body">
+                    <div id="historyTableWrap"></div>
                 </div>
             </div>
         </div>
