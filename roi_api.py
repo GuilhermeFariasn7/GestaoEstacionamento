@@ -560,6 +560,19 @@ def get_test_samples(job_id):
     data = test_runner.get_samples(job_id, offset=offset, limit=limit)
     if data is None:
         return jsonify({"error": "Teste não encontrado ou ainda não concluído."}), 404
+
+    # Retorna as coordenadas originais das ROIs para desenhá-las sobre
+    # cada quadro da revisão manual, mantendo os nomes das vagas.
+    status = test_runner.get_status(job_id) or {}
+    environment_name = status.get("environment", "")
+    try:
+        polygons = store.get_regions_for_program(environment_name)
+    except (ValueError, KeyError, TypeError):
+        polygons = {}
+    data["region_polygons"] = {
+        name: [[int(x), int(y)] for x, y in points]
+        for name, points in polygons.items()
+    }
     return jsonify(data)
 
 

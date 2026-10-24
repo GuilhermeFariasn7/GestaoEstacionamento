@@ -1159,3 +1159,12 @@ hr {
         font-size: 0.7rem;
     }
 }
+/* Coleta de dados para avaliação acadêmica, integrada ao dashboard. */
+.evaluation-panel { margin-top: 1.25rem; }
+.evaluation-body { display: flex; flex-direction: column; gap: .75rem; }
+.evaluation-controls { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; }
+.evaluation-controls label, .evaluation-controls span { margin: 0; color: var(--text-secondary, #667085); font-size: .9rem; }
+.evaluation-number { width: 84px; min-width: 84px; }
+.evaluation-message { margin: 0; color: var(--text-secondary, #667085); }
+.evaluation-downloads { display: flex; flex-wrap: wrap; gap: 1rem; }
+.evaluation-downloads a { display: none; }

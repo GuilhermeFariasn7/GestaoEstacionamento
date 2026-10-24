@@ -67,3 +67,21 @@ A tela `/tests` é uma ferramenta independente para os experimentos e avaliaçõ
 Para utilizá-la, inicie normalmente o Smart Parking e depois execute `ABRIR_TESTES.bat` ou acesse diretamente `http://127.0.0.1:5000/tests`.
 
 O dashboard e o editor de configuração não possuem links para a tela de testes. Os testes servem exclusivamente para analisar vídeos, comparar as detecções com um gabarito manual e obter métricas para a avaliação acadêmica.
+
+
+## Avaliação do TCC integrada ao monitoramento
+
+A coleta acadêmica agora fica no dashboard principal (`http://127.0.0.1:5000/`), abaixo dos cartões de vagas. Não é necessário abrir `ABRIR_TESTES.bat` nem acessar `/tests`.
+
+1. Configure as vagas no editor de ROIs e salve o ambiente.
+2. No dashboard, selecione o ambiente em Configurações e clique em **Iniciar monitoramento**.
+3. Na seção **Coleta de dados para o TCC**, escolha a frequência de amostragem e clique em **Iniciar coleta**. O número indica quantas análises do detector devem ocorrer entre amostras salvas (1 salva cada análise; 5 salva uma a cada cinco análises).
+4. Ao terminar, clique em **Finalizar coleta**. Baixe `previsoes.csv` e o modelo `gabarito.csv`. As imagens anotadas são salvas na pasta `data/avaliacoes/<id>/amostras`.
+5. Abra o `gabarito.csv` e preencha a coluna `estado_real` com `ocupada` ou `livre` para cada combinação amostra/vaga. Deixe sem preencher as amostras em que não for possível determinar o estado real. Não anote previsões `fora_de_vista`.
+6. Calcule as métricas executando no terminal, dentro da pasta do projeto:
+
+   `python calcular_metricas_tcc.py "data/avaliacoes/<id>/previsoes.csv" "data/avaliacoes/<id>/gabarito.csv"`
+
+O script gera `metricas_tcc.csv` com TP, TN, FP, FN, acurácia, precisão, recall e taxa de falsos positivos, no geral e por vaga. As métricas só são válidas para as observações anotadas manualmente.
+
+**Observação:** a coleta usa o mesmo monitoramento/YOLO do dashboard e grava os quadros com as ROIs desenhadas. A medição de tempo registrada cobre a chamada completa de processamento do detector, incluindo a lógica de classificação/desenho, não apenas o tempo interno da rede neural. Para comparar com Gemini, a avaliação precisa usar os mesmos quadros e vagas e registrar o tempo de chamada do Gemini separadamente.

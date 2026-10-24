@@ -15,11 +15,12 @@ import os
 import threading
 import time
 
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, send_file
 from flask_cors import CORS
 from flask_socketio import SocketIO
 
 import live_monitor
+import evaluation_capture
 
 app = Flask(
     __name__,
@@ -268,6 +269,52 @@ def monitoring_status():
     return jsonify(
         live_monitor.status()
     )
+
+
+
+
+@app.route("/api/evaluation/status")
+def evaluation_status():
+    return jsonify(evaluation_capture.status())
+
+
+@app.route("/api/evaluation/start", methods=["POST"])
+def evaluation_start():
+    from flask import request
+    body = request.get_json(silent=True) or {}
+    environment = str(body.get("environment", "")).strip()
+    if not environment:
+        return jsonify({"error": "Selecione um ambiente no dashboard."}), 400
+    monitor = live_monitor.status()
+    if not monitor.get("running") or monitor.get("environment") != environment:
+        return jsonify({"error": "Inicie o monitoramento desse ambiente antes de iniciar a coleta."}), 400
+    try:
+        return jsonify(evaluation_capture.start(environment, body.get("sample_every", 5)))
+    except (RuntimeError, ValueError) as error:
+        return jsonify({"error": str(error)}), 409
+
+
+@app.route("/api/evaluation/stop", methods=["POST"])
+def evaluation_stop():
+    return jsonify(evaluation_capture.stop())
+
+
+@app.route("/api/evaluation/predictions.csv")
+def evaluation_predictions_csv():
+    paths = evaluation_capture.latest_paths()
+    if not paths or not os.path.isfile(paths["csv"]):
+        return jsonify({"error": "Nenhuma coleta encontrada."}), 404
+    return send_file(paths["csv"], as_attachment=True, download_name=f"previsoes_{paths['id']}.csv")
+
+
+@app.route("/api/evaluation/gabarito.csv")
+def evaluation_ground_truth_template():
+    try:
+        path = evaluation_capture.create_ground_truth_template()
+    except (RuntimeError, OSError, ValueError) as error:
+        return jsonify({"error": str(error)}), 400
+    paths = evaluation_capture.latest_paths()
+    return send_file(path, as_attachment=True, download_name=f"gabarito_{paths['id']}.csv")
 
 
 @app.route("/health")

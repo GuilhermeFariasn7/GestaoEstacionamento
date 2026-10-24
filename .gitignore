@@ -227,3 +227,6 @@ data/test_uploads/
 
 # Resultados dos testes
 test_results/
+
+.rar
+.zip

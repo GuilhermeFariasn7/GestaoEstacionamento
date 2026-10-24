@@ -22,6 +22,7 @@ import threading
 import cv2
 
 import regions_store as store
+import evaluation_capture
 from roi_stabilizer import build_stabilizer_for_environment
 
 # RegionCounterLive (e o ultralytics/YOLO que ela carrega) é importado
@@ -135,6 +136,11 @@ def _run(environment_name, stop_event):
 
     from regionCounterLive import RegionCounterLive
 
+    # Ajuste do tamanho da janela de visualização do YOLO.
+    # Permite redimensionar a janela sem alterar a resolução de inferência.
+    cv2.namedWindow("Ultralytics Solutions", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow("Ultralytics Solutions", 800, 400)
+
     live_counter = RegionCounterLive(
         show=True,
         region=coordinates,
@@ -164,9 +170,22 @@ def _run(environment_name, stop_event):
 
             if frame_counter % DETECT_EVERY_N_FRAMES == 0:
 
+                inference_started = __import__("time").perf_counter()
                 results = live_counter.process(frame)
+                inference_ms = (__import__("time").perf_counter() - inference_started) * 1000.0
 
                 detection_counter += 1
+                # Coleta opcional para o TCC dentro do monitoramento principal.
+                # Salva previsões e um quadro anotado, sem usar a tela /tests.
+                evaluation_capture.record(
+                    environment_name,
+                    frame_counter,
+                    frame_counter / max(float(capture.get(cv2.CAP_PROP_FPS) or 0), 1.0),
+                    getattr(live_counter, "region_counts", {}),
+                    getattr(live_counter, "region_visibility", {}),
+                    inference_ms,
+                    getattr(results, "plot_im", frame)
+                )
 
                 if detection_counter % SAVE_JSON_EVERY_N_DETECTIONS == 0:
 
@@ -192,6 +211,9 @@ def _run(environment_name, stop_event):
     finally:
 
         capture.release()
+        # Se o vídeo/câmera encerrar, finaliza a coleta para evitar que
+        # a interface indique coleta ativa sem novas amostras.
+        evaluation_capture.stop()
         cv2.destroyAllWindows()
 
         print(f"[MONITOR] Monitoramento encerrado: {environment_name}")
