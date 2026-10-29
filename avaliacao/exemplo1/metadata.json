@@ -1,0 +1,40 @@
+{
+  "rotulo": "exemplo1",
+  "ambiente": "ESTACIONAMENTO_TESTE1",
+  "video": "D:/TCC-Final/data/exemplo1.mp4",
+  "camera": "",
+  "periodo": "",
+  "fps": 29.97,
+  "frames_total": 432,
+  "duracao_s": 14.414414414414415,
+  "largura": 2560,
+  "altura": 1440,
+  "intervalo_s": 5.0,
+  "aquecimento_s": 1.0,
+  "confianca": 0.4,
+  "modelo": "yolo12x.pt",
+  "classes": [
+    2
+  ],
+  "estabilizacao": false,
+  "projecao": "perspective",
+  "vagas": [
+    "vaga-01",
+    "vaga-02",
+    "vaga-03",
+    "vaga-04",
+    "vaga-05"
+  ],
+  "iniciado_em": "2026-10-24T16:56:19",
+  "software": {
+    "python": "3.13.13",
+    "opencv": "4.11.0",
+    "ultralytics": "8.3.133",
+    "torch": "2.6.0",
+    "cuda": false
+  },
+  "amostras": 3,
+  "tempo_medio_ms": 6430.700000000001,
+  "terminou_antes_do_fim_do_video": false,
+  "finalizado_em": "2026-10-24T16:56:45"
+}

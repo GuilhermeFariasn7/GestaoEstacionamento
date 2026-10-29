@@ -60,28 +60,41 @@ python diagnostico_estabilizacao.py <ambiente> [--projection equirectangular] [-
 
 Roda apenas o rastreamento (sem YOLO) e salva em `diagnosticos/` um vídeo com as vagas na posição estimada e um CSV frame a frame. Útil para escolher a projeção correta e para comparar projeções nos resultados do TCC.
 
-## Tela de testes do TCC
+## Protocolo de testes do TCC (equivalente a Rocha, 2025)
 
-A tela `/tests` é uma ferramenta independente para os experimentos e avaliações do TCC. Ela não faz parte do fluxo do usuário final e não é aberta automaticamente junto com o sistema.
+A rota oficial para os experimentos é a tela **Testes** (`ABRIR_TESTES.bat` ou `http://127.0.0.1:5000/tests`). Ela processa um vídeo gravado, salva cada amostra e permite montar o gabarito manual sobre exatamente os mesmos quadros. A coleta pelo dashboard (`evaluation_capture.py`) continua existindo, mas depende do monitoramento ao vivo e não é a recomendada para o TCC.
 
-Para utilizá-la, inicie normalmente o Smart Parking e depois execute `ABRIR_TESTES.bat` ou acesse diretamente `http://127.0.0.1:5000/tests`.
+### Parâmetros para reproduzir Rocha (2025)
 
-O dashboard e o editor de configuração não possuem links para a tela de testes. Os testes servem exclusivamente para analisar vídeos, comparar as detecções com um gabarito manual e obter métricas para a avaliação acadêmica.
+| Parâmetro | Valor |
+|---|---|
+| Modelo | `yolo12x.pt`, classe 2 (car) do COCO |
+| Confiança | 0,40 |
+| Amostragem | **a cada 5 segundos de vídeo** (amostras em 0 s, 5 s, 10 s...) |
+| Unidade de análise | vaga × amostra (1 hora de vídeo com 18 vagas = 720 × 18 = 12.960 observações) |
+| Rastreamento | desligado (cada amostra é analisada de forma independente) |
+| Critério de ocupação | sobreposição ≥ 15% (sistema) e, para comparação, centro da caixa (RegionCounter usado por Rocha) |
 
+### Passo a passo
 
-## Avaliação do TCC integrada ao monitoramento
+Tudo é feito na tela de experimentos (`ABRIR_TESTES.bat`), em quatro etapas:
 
-A coleta acadêmica agora fica no dashboard principal (`http://127.0.0.1:5000/`), abaixo dos cartões de vagas. Não é necessário abrir `ABRIR_TESTES.bat` nem acessar `/tests`.
+1. **Vídeo**: escolha um vídeo da pasta `data/` ou envie um do computador (fica em `data/videos_teste/`).
+2. **Vagas**: escolha um ambiente ou crie um novo e clique em *Definir vagas sobre este vídeo*. No modal, escolha um quadro do vídeo, clique nos cantos de cada vaga (Enter, duplo clique ou clique no primeiro ponto fecham a vaga) e salve. O quadro escolhido vira a referência do ambiente, então as vagas ficam na mesma resolução do vídeo. Vídeos da mesma câmera e ângulo podem usar o mesmo ambiente.
+3. **Executar**: dê um nome ao teste, mantenha 5 s de intervalo e informe se o vídeo está acelerado (2×, 4×...), para o intervalo continuar sendo de 5 s reais. Clique em *Iniciar teste*.
+4. **Análise**: para cada amostra, clique nas vagas da imagem (ou teclas 1–9) até ficarem com o estado real e aperte Enter para salvar e avançar. A próxima amostra vem pré-preenchida; corrija só o que mudou. A linha do tempo mostra o que falta (cinza) e onde o YOLO errou (vermelho). Deixe *Mostrar o que o YOLO previu* desligado durante a anotação.
 
-1. Configure as vagas no editor de ROIs e salve o ambiente.
-2. No dashboard, selecione o ambiente em Configurações e clique em **Iniciar monitoramento**.
-3. Na seção **Coleta de dados para o TCC**, escolha a frequência de amostragem e clique em **Iniciar coleta**. O número indica quantas análises do detector devem ocorrer entre amostras salvas (1 salva cada análise; 5 salva uma a cada cinco análises).
-4. Ao terminar, clique em **Finalizar coleta**. Baixe `previsoes.csv` e o modelo `gabarito.csv`. As imagens anotadas são salvas na pasta `data/avaliacoes/<id>/amostras`.
-5. Abra o `gabarito.csv` e preencha a coluna `estado_real` com `ocupada` ou `livre` para cada combinação amostra/vaga. Deixe sem preencher as amostras em que não for possível determinar o estado real. Não anote previsões `fora_de_vista`.
-6. Calcule as métricas executando no terminal, dentro da pasta do projeto:
+No botão **Histórico e tabelas do TCC**, marque os testes na ordem dos vídeos e clique em *Gerar tabelas e figuras do TCC*: é baixado um .zip (também salvo em `resultados_tcc/`) com as Tabelas 1, 4, 5, 6 e 8 em CSV e LaTeX, métricas por vaga e as matrizes de confusão. O mesmo pode ser feito pelo terminal com `python gerar_resultados_tcc.py --listar` e `python gerar_resultados_tcc.py <id1> <id2>`.
 
-   `python calcular_metricas_tcc.py "data/avaliacoes/<id>/previsoes.csv" "data/avaliacoes/<id>/gabarito.csv"`
+### Arquivos de cada teste (`test_results/<ambiente>_<id>/`)
 
-O script gera `metricas_tcc.csv` com TP, TN, FP, FN, acurácia, precisão, recall e taxa de falsos positivos, no geral e por vaga. As métricas só são válidas para as observações anotadas manualmente.
+- `metadata.json`: parâmetros, FPS, resolução, duração, critério, tempos (média/desvio por quadro e de inferência) e hardware/software usados.
+- `data.csv`: previsão por vaga em cada amostra, com `tempo_total_ms`, `tempo_inferencia_ms` e `num_veiculos`.
+- `samples/` e `rois.jsonl`: imagens das amostras (sem desenhos) e a posição das vagas usada em cada uma.
+- `ground_truth.json`, `metrics.json`, `metrics.csv`: gabarito e métricas.
 
-**Observação:** a coleta usa o mesmo monitoramento/YOLO do dashboard e grava os quadros com as ROIs desenhadas. A medição de tempo registrada cobre a chamada completa de processamento do detector, incluindo a lógica de classificação/desenho, não apenas o tempo interno da rede neural. Para comparar com Gemini, a avaliação precisa usar os mesmos quadros e vagas e registrar o tempo de chamada do Gemini separadamente.
+### Convenção das métricas
+
+Classe positiva = **vaga ocupada** (TP = ocupada prevista como ocupada; FP = livre prevista como ocupada). As colunas `*_livre` trazem as mesmas métricas com **vaga livre** como positiva. Pela matriz publicada por Rocha (2025) (TP = 16.141, FN = 2.330, FP = 0, TN = 3.561), a precisão de 60,45% corresponde à convenção *livre positiva* (3.561 / 5.891); com *ocupada positiva*, os mesmos dados dão precisão 100%, recall 87,39%, FPR 0% e acurácia 89,42%. As métricas de Rocha (2025) recalculadas aparecem como referência em `metrics.json` e na tela de revisão.
+
+O tempo do primeiro quadro (carregamento/aquecimento do modelo) fica fora da média de tempo por quadro.

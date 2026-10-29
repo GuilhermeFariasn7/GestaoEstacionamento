@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gabarito - exemplo1</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#12131a;color:#e8e9ee}
+header{display:flex;gap:16px;align-items:center;padding:10px 16px;background:#1b1d29;border-bottom:1px solid #2c2f40;flex-wrap:wrap}
+header h1{font-size:16px;margin:0}#info{font-size:15px;font-weight:bold}#msg{font-size:13px;color:#9aa0b5}
+main{display:flex;gap:14px;padding:14px;align-items:flex-start}
+#palco{flex:1;min-width:0;background:#000;border-radius:8px;text-align:center}
+#img{max-width:100%;max-height:calc(100vh - 150px);cursor:zoom-in}
+aside{width:340px;flex:none}
+.vaga{display:flex;align-items:center;gap:6px;background:#1b1d29;border:1px solid #2c2f40;border-radius:8px;padding:6px 8px;margin-bottom:6px}
+.vaga .n{width:18px;color:#9aa0b5;font-size:12px}.vaga .nome{flex:1;font-weight:bold;font-size:14px;overflow:hidden;text-overflow:ellipsis}
+button{font:inherit;border:1px solid #3a3e55;background:#262a3c;color:#e8e9ee;border-radius:6px;padding:5px 9px;cursor:pointer}
+button:hover{background:#31364d}
+.btn-o.on{background:#c62839;border-color:#ff5468}.btn-l.on{background:#12805a;border-color:#2fd9a0}
+.vaga .ev{width:12px;color:#ffd43b;font-size:14px;text-align:center}
+.x{padding:3px 7px;color:#9aa0b5}
+.nav{display:flex;gap:6px;margin:10px 0;flex-wrap:wrap}.nav button{flex:1}
+#linha{width:100%;background:#1b1d29;border-radius:6px;cursor:pointer;margin-top:6px}
+.dica{font-size:12px;color:#9aa0b5;line-height:1.5;margin-top:10px}.dica b{color:#e8e9ee}
+.baixar{background:#2b6fe0;border-color:#5b95ff;width:100%;margin-top:8px;padding:9px}
+#faltam{font-size:13px;margin-top:8px}.warn{color:#ffb454}
+</style></head><body>
+<header><h1>Gabarito manual - exemplo1</h1><span id="info"></span><span id="msg"></span></header>
+<main>
+ <div id="palco"><img id="img" alt="quadro"></div>
+ <aside>
+  <div class="nav">
+   <button id="bPrev">&larr; Anterior</button><button id="bNext">Próximo &rarr;</button>
+   <button id="bMenos">-10</button><button id="bMais">+10</button>
+  </div>
+  <div id="vagas"></div>
+  <canvas id="linha" height="10"></canvas>
+  <div id="faltam"></div>
+  <button class="baixar" id="bBaixar">Baixar gabarito (gabarito.csv)</button>
+  <button id="bImportar" style="width:100%;margin-top:6px">Importar um gabarito.csv salvo antes</button>
+  <input type="file" id="arq" accept=".csv" style="display:none">
+  <div class="dica">
+   <b>Como marcar:</b> o estado vale <b>deste quadro em diante</b> até você marcar outro. Então basta marcar
+   no <b>primeiro quadro</b> o estado de todas as vagas e depois só mexer nos quadros em que um carro
+   <b>chega ou sai</b>. Errou? Volte ao quadro e marque de novo (ou clique no &times;).<br><br>
+   <b>Atalhos:</b> &larr; &rarr; navegam | <b>1-9</b> alterna a vaga de mesmo número (ocupada/livre) |
+   Z desfaz | clique na imagem para abrir em tamanho original.<br><br>
+   Salva sozinho neste navegador. Ao terminar, baixe o CSV e coloque-o nesta pasta com o nome
+   <b>gabarito.csv</b>.
+  </div>
+ </aside>
+</main>
+<script>
+// ==LOGICA==
+function preencher(eventos, n){
+  const out = new Array(n).fill(null); let atual = null;
+  for (let i = 0; i < n; i++){ if (eventos[i] !== undefined) atual = eventos[i]; out[i] = atual; }
+  return out;
+}
+function eventosDeEstados(estados){
+  const ev = {}; let prev = null;
+  for (let i = 0; i < estados.length; i++){
+    const s = estados[i];
+    if (s){ if (s !== prev) ev[i] = s; prev = s; }
+  }
+  return ev;
+}
+function aspas(v){ v = String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+function montarCSV(amostras, vagas, estados){
+  const linhas = ["amostra,tempo_s,vaga,estado_real"];
+  for (let i = 0; i < amostras.length; i++){
+    for (const v of vagas){
+      linhas.push([amostras[i].id, amostras[i].t, aspas(v), estados[v][i] || ""].join(","));
+    }
+  }
+  return linhas.join("\n") + "\n";
+}
+function linhaCSV(l){
+  const out = []; let cur = "", q = false;
+  for (let i = 0; i < l.length; i++){
+    const c = l[i];
+    if (q){ if (c === '"'){ if (l[i+1] === '"'){ cur += '"'; i++; } else q = false; } else cur += c; }
+    else if (c === '"') q = true;
+    else if (c === ","){ out.push(cur); cur = ""; }
+    else cur += c;
+  }
+  out.push(cur); return out;
+}
+function lerCSV(texto, amostras, vagas){
+  const idxPorId = {}; amostras.forEach((a, i) => idxPorId[a.id] = i);
+  const estados = {}; vagas.forEach(v => estados[v] = new Array(amostras.length).fill(null));
+  const linhas = texto.replace(/^\uFEFF/, "").split(/\r?\n/).filter(x => x.trim() !== "");
+  const cab = linhaCSV(linhas[0]).map(s => s.trim());
+  const ia = cab.indexOf("amostra"), iv = cab.indexOf("vaga"), ie = cab.indexOf("estado_real");
+  if (ia < 0 || iv < 0 || ie < 0) throw new Error("CSV sem as colunas amostra, vaga, estado_real.");
+  for (let j = 1; j < linhas.length; j++){
+    const c = linhaCSV(linhas[j]);
+    const i = idxPorId[parseInt(c[ia], 10)], v = c[iv], e = (c[ie] || "").trim().toLowerCase();
+    if (i === undefined || !estados[v]) continue;
+    if (e === "ocupada" || e === "livre") estados[v][i] = e;
+  }
+  const eventos = {}; vagas.forEach(v => eventos[v] = eventosDeEstados(estados[v]));
+  return eventos;
+}
+// ==FIM==
+
+if (typeof document !== "undefined"){
+const D = {"rotulo": "exemplo1", "amostras": [{"id": 1, "t": 0.0, "img": "para_anotar/amostra_00001.jpg"}, {"id": 2, "t": 5.0, "img": "para_anotar/amostra_00002.jpg"}, {"id": 3, "t": 10.01, "img": "para_anotar/amostra_00003.jpg"}], "vagas": ["vaga-01", "vaga-02", "vaga-03", "vaga-04", "vaga-05"]};
+const N = D.amostras.length, KEY = "gabarito:" + D.rotulo;
+let idx = 0, eventos = {}, estado = {}, pilha = [];
+D.vagas.forEach(v => eventos[v] = {});
+const $ = id => document.getElementById(id);
+
+function recomputar(v){ estado[v] = preencher(eventos[v], N); }
+function recomputarTodos(){ D.vagas.forEach(recomputar); }
+function salvar(){ try{ localStorage.setItem(KEY, JSON.stringify({idx: idx, eventos: eventos})); }catch(e){} }
+function carregar(){
+  try{
+    const s = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (s && s.eventos){ D.vagas.forEach(v => { if (s.eventos[v]) eventos[v] = s.eventos[v]; }); idx = Math.min(Math.max(0, s.idx|0), N-1); }
+  }catch(e){}
+}
+function hms(t){ t = Math.round(t); const h = Math.floor(t/3600), m = Math.floor(t%3600/60), s = t%60;
+  return (h?String(h).padStart(2,"0")+":":"") + String(m).padStart(2,"0") + ":" + String(s).padStart(2,"0"); }
+
+function definir(v, valor){
+  const atual = estado[v][idx], tinha = eventos[v][idx];
+  if (atual === valor && tinha === undefined) return;      // já é esse estado
+  pilha.push({v: v, i: idx, antes: tinha});
+  eventos[v][idx] = valor; recomputar(v); salvar(); desenhar();
+}
+function limparEvento(v){
+  const tinha = eventos[v][idx]; if (tinha === undefined) return;
+  pilha.push({v: v, i: idx, antes: tinha}); delete eventos[v][idx]; recomputar(v); salvar(); desenhar();
+}
+function desfazer(){
+  const a = pilha.pop(); if (!a) return;
+  if (a.antes === undefined) delete eventos[a.v][a.i]; else eventos[a.v][a.i] = a.antes;
+  recomputar(a.v); idx = a.i; salvar(); desenhar();
+}
+function ir(i){ idx = Math.max(0, Math.min(N-1, i)); salvar(); desenhar(); }
+
+function montarVagas(){
+  const box = $("vagas"); box.innerHTML = "";
+  D.vagas.forEach((v, k) => {
+    const d = document.createElement("div"); d.className = "vaga"; d.id = "v" + k;
+    d.innerHTML = '<span class="n">' + (k < 9 ? k+1 : "") + '</span><span class="nome"></span><span class="ev" title="marcação feita neste quadro"></span>' +
+      '<button class="btn-o">Ocupada</button><button class="btn-l">Livre</button><button class="x" title="remover a marcação deste quadro">&times;</button>';
+    d.querySelector(".nome").textContent = v;
+    d.querySelector(".btn-o").onclick = () => definir(v, "ocupada");
+    d.querySelector(".btn-l").onclick = () => definir(v, "livre");
+    d.querySelector(".x").onclick = () => limparEvento(v);
+    box.appendChild(d);
+  });
+}
+function desenhar(){
+  const a = D.amostras[idx];
+  $("img").src = a.img;
+  $("info").textContent = "Quadro " + (idx+1) + " de " + N + "  |  tempo " + hms(a.t);
+  D.vagas.forEach((v, k) => {
+    const d = $("v" + k), s = estado[v][idx];
+    d.querySelector(".btn-o").classList.toggle("on", s === "ocupada");
+    d.querySelector(".btn-l").classList.toggle("on", s === "livre");
+    d.querySelector(".ev").textContent = eventos[v][idx] !== undefined ? "\u25CF" : "";
+  });
+  let faltam = 0; D.vagas.forEach(v => { estado[v].forEach(s => { if (!s) faltam++; }); });
+  $("faltam").innerHTML = faltam ? '<span class="warn">Observações ainda sem estado: ' + faltam + ' (defina o estado no quadro 1)</span>' : "Todas as observações têm estado definido.";
+  linha();
+  [idx+1, idx-1].forEach(j => { if (j >= 0 && j < N){ const p = new Image(); p.src = D.amostras[j].img; } });
+}
+function linha(){
+  const c = $("linha"), W = c.clientWidth || 340, h = 9, g = 2;
+  c.width = W; c.height = D.vagas.length * (h+g) + 2;
+  const x = c.getContext("2d"); x.clearRect(0, 0, c.width, c.height);
+  const cor = {ocupada: "#e5384b", livre: "#1fb184"};
+  D.vagas.forEach((v, k) => {
+    let ini = 0;
+    for (let i = 1; i <= N; i++){
+      if (i === N || estado[v][i] !== estado[v][ini]){
+        x.fillStyle = cor[estado[v][ini]] || "#444"; 
+        x.fillRect(ini/N*W, k*(h+g)+1, Math.max(1, (i-ini)/N*W), h); ini = i;
+      }
+    }
+  });
+  x.fillStyle = "#fff"; x.fillRect(idx/N*W, 0, 2, c.height);
+}
+function baixar(){
+  let faltam = 0; D.vagas.forEach(v => estado[v].forEach(s => { if (!s) faltam++; }));
+  if (faltam && !confirm(faltam + " observações estão sem estado e serão ignoradas nas métricas. Baixar mesmo assim?")) return;
+  const blob = new Blob(["\uFEFF" + montarCSV(D.amostras, D.vagas, estado)], {type: "text/csv;charset=utf-8"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = "gabarito_" + D.rotulo + ".csv"; document.body.appendChild(a); a.click(); a.remove();
+  $("msg").textContent = "Baixado. Mova o arquivo para esta pasta e renomeie para gabarito.csv (ou deixe em Downloads: o passo 'metricas' também procura lá).";
+}
+$("bPrev").onclick = () => ir(idx-1); $("bNext").onclick = () => ir(idx+1);
+$("bMenos").onclick = () => ir(idx-10); $("bMais").onclick = () => ir(idx+10);
+$("bBaixar").onclick = baixar;
+$("img").onclick = () => window.open(D.amostras[idx].img, "_blank");
+$("linha").onclick = ev => { const r = $("linha").getBoundingClientRect(); ir(Math.round((ev.clientX - r.left)/r.width*(N-1))); };
+$("bImportar").onclick = () => $("arq").click();
+$("arq").onchange = ev => {
+  const f = ev.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { try{ eventos = lerCSV(r.result, D.amostras, D.vagas); recomputarTodos(); pilha = []; salvar(); desenhar(); $("msg").textContent = "Gabarito importado."; }
+    catch(e){ alert(e.message); } };
+  r.readAsText(f, "utf-8");
+};
+document.addEventListener("keydown", ev => {
+  if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  if (ev.key === "ArrowRight" || ev.key === "d") ir(idx+1);
+  else if (ev.key === "ArrowLeft" || ev.key === "a") ir(idx-1);
+  else if (ev.key === "PageDown") ir(idx+10); else if (ev.key === "PageUp") ir(idx-10);
+  else if (ev.key === "Home") ir(0); else if (ev.key === "End") ir(N-1);
+  else if (ev.key === "z" || ev.key === "Z") desfazer();
+  else if (/^[1-9]$/.test(ev.key)){
+    const v = D.vagas[parseInt(ev.key, 10) - 1]; if (!v) return;
+    const s = estado[v][idx]; definir(v, s === "ocupada" ? "livre" : "ocupada");
+  } else return;
+  ev.preventDefault();
+});
+window.addEventListener("resize", linha);
+montarVagas(); carregar(); recomputarTodos(); desenhar();
+}
+</script></body></html>

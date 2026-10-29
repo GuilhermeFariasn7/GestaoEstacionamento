@@ -1,0 +1,16 @@
+﻿amostra,tempo_s,frame,vaga,previsao,visivel,tempo_ms,imagem
+1,0.000,0,vaga-01,livre,1,15453.2,amostra_00001.jpg
+1,0.000,0,vaga-02,ocupada,1,15453.2,amostra_00001.jpg
+1,0.000,0,vaga-03,livre,1,15453.2,amostra_00001.jpg
+1,0.000,0,vaga-04,ocupada,1,15453.2,amostra_00001.jpg
+1,0.000,0,vaga-05,ocupada,1,15453.2,amostra_00001.jpg
+2,5.005,150,vaga-01,livre,1,1893.0,amostra_00002.jpg
+2,5.005,150,vaga-02,ocupada,1,1893.0,amostra_00002.jpg
+2,5.005,150,vaga-03,livre,1,1893.0,amostra_00002.jpg
+2,5.005,150,vaga-04,livre,1,1893.0,amostra_00002.jpg
+2,5.005,150,vaga-05,ocupada,1,1893.0,amostra_00002.jpg
+3,10.010,300,vaga-01,livre,1,1945.9,amostra_00003.jpg
+3,10.010,300,vaga-02,ocupada,1,1945.9,amostra_00003.jpg
+3,10.010,300,vaga-03,livre,1,1945.9,amostra_00003.jpg
+3,10.010,300,vaga-04,ocupada,1,1945.9,amostra_00003.jpg
+3,10.010,300,vaga-05,livre,1,1945.9,amostra_00003.jpg

@@ -19,6 +19,7 @@ fora do polígono, mesmo estando visualmente sobre a vaga.
 import cv2
 import numpy as np
 from shapely.affinity import translate
+from shapely.geometry import Point as ShapelyPoint
 from shapely.geometry import box as shapely_box
 from shapely.geometry import Polygon as ShapelyPolygon
 from shapely.ops import unary_union
@@ -66,9 +67,18 @@ MIN_VISIBLE_FRACTION = 0.5
 # ------------------------------------------------------------------
 MIN_VEHICLE_OVERLAP = 0.15
 
+# Critérios de ocupação disponíveis.
+#   "sobreposicao": critério deste sistema (>= MIN_VEHICLE_OVERLAP da área
+#                   do veículo dentro da vaga, atribuído à vaga de maior
+#                   sobreposição).
+#   "centro":       critério do RegionCounter original do Ultralytics,
+#                   usado por Rocha (2025): a vaga é ocupada quando o
+#                   centro da caixa do veículo está dentro do polígono.
+CRITERIA = ("sobreposicao", "centro")
+
 
 class RegionCounterLive(BaseSolution):
-    def __init__(self, stabilizer=None, **kwargs):
+    def __init__(self, stabilizer=None, criterion="sobreposicao", use_tracking=True, **kwargs):
         """
         Args:
             stabilizer (RegionStabilizer, optional): quando informado,
@@ -77,10 +87,25 @@ class RegionCounterLive(BaseSolution):
                 move. Se None (padrão), o comportamento é de vaga fixa
                 nos pixels configurados.
 
+            criterion (str): "sobreposicao" (padrão do sistema) ou
+                "centro" (critério do RegionCounter usado por Rocha, 2025).
+
+            use_tracking (bool): True usa model.track (ByteTrack), como no
+                monitoramento ao vivo. False usa model.predict, analisando
+                cada quadro de forma independente -- recomendado para os
+                testes por amostragem, em que os quadros ficam segundos
+                distantes uns dos outros e o rastreador não consegue
+                associar os veículos entre eles.
+
             **kwargs: demais argumentos repassados para o BaseSolution
                 do ultralytics (model, region, classes, conf, show...).
         """
         super().__init__(**kwargs)
+        if criterion not in CRITERIA:
+            raise ValueError(f"Critério de ocupação inválido: {criterion}")
+        self.criterion = criterion
+        self.use_tracking = bool(use_tracking)
+        self.last_speed = {}
         self.stabilizer = stabilizer
         self.counting_regions = []
         self._prepared_shape = None
@@ -174,6 +199,43 @@ class RegionCounterLive(BaseSolution):
                     scale, color, thickness, cv2.LINE_AA)
 
     # ------------------------------------------------------------------
+    # Detecção
+    # ------------------------------------------------------------------
+
+    def extract_tracks(self, im0):
+        """
+        Com use_tracking=True mantém o comportamento original
+        (model.track). Com use_tracking=False roda apenas a detecção
+        (model.predict): cada quadro é avaliado de forma independente,
+        sem depender dos quadros anteriores.
+
+        Observação: no ByteTrack um veículo que aparece pela primeira vez
+        só é devolvido a partir do segundo quadro em que é associado.
+        Em amostras distantes (ex.: 5 s), isso atrasaria a detecção de
+        chegadas em uma amostra; por isso os testes usam predict.
+        """
+        if self.use_tracking:
+            super().extract_tracks(im0)
+        else:
+            args = {k: v for k, v in self.track_add_args.items() if k != "tracker"}
+            self.tracks = self.model.predict(source=im0, classes=self.classes, **args)
+            data = self.tracks[0].obb or self.tracks[0].boxes
+            self.track_data = data
+
+            if data is not None and len(data):
+                self.boxes = data.xyxy.cpu()
+                self.clss = data.cls.cpu().tolist()
+                self.confs = data.conf.cpu().tolist()
+                self.track_ids = list(range(len(self.clss)))
+            else:
+                self.boxes, self.clss, self.track_ids, self.confs = [], [], [], []
+
+        try:
+            self.last_speed = dict(getattr(self.tracks[0], "speed", {}) or {})
+        except (TypeError, IndexError, AttributeError):
+            self.last_speed = {}
+
+    # ------------------------------------------------------------------
     # Análise de cada frame
     # ------------------------------------------------------------------
 
@@ -253,6 +315,15 @@ class RegionCounterLive(BaseSolution):
                     (right, bottom),
                     (left, bottom)
                 ])
+
+                if self.criterion == "centro":
+                    # Critério do RegionCounter original (Rocha, 2025):
+                    # a vaga que contém o centro da caixa fica ocupada.
+                    center = ShapelyPoint((left + right) / 2, (top + bottom) / 2)
+                    for region in self.counting_regions:
+                        if region["visible"] and region["polygon"].contains(center):
+                            region["counts"] += 1
+                    continue
 
                 # Verifica a sobreposição da detecção com cada vaga.
                 # A detecção é atribuída somente à vaga com maior

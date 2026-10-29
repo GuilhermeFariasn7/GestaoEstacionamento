@@ -17,7 +17,10 @@ const sourceVideoFileEl = document.getElementById('sourceVideoFile');
 const sourcePathInputEl = document.getElementById('sourcePathInput');
 const confidenceEl = document.getElementById('confidence');
 const confidenceValueEl = document.getElementById('confidenceValue');
-const frameStepEl = document.getElementById('frameStep');
+const samplingModeEl = document.getElementById('samplingMode');
+const samplingValueEl = document.getElementById('samplingValue');
+const criterionEl = document.getElementById('criterion');
+const trackingEl = document.getElementById('tracking');
 const stabilizeEl = document.getElementById('stabilize');
 const startTestEl = document.getElementById('startTest');
 const resultCardEl = document.getElementById('resultCard');
@@ -72,7 +75,7 @@ function formatDate(timestamp) {
 
 function formatPercent(value) {
     if (value === null || value === undefined) return '—';
-    return Math.round(value * 100) + '%';
+    return (value * 100).toFixed(2).replace('.', ',') + '%';
 }
 
 /* ---------- parâmetros ---------- */
@@ -245,7 +248,8 @@ if (refreshHistoryBtn) {
 /* ---------- estado do formulário ---------- */
 
 function setControlsDisabled(disabled) {
-    [envSelectEl, sourceModeEl, sourceVideoFileEl, sourcePathInputEl, confidenceEl, frameStepEl, stabilizeEl]
+    [envSelectEl, sourceModeEl, sourceVideoFileEl, sourcePathInputEl, confidenceEl,
+     samplingModeEl, samplingValueEl, criterionEl, trackingEl, stabilizeEl]
         .forEach(el => { el.disabled = disabled; });
 }
 
@@ -331,11 +335,20 @@ async function startTest() {
     showRunning('Iniciando teste...');
 
     try {
+        const samplingValue = Number(samplingValueEl.value);
+        if (!(samplingValue > 0)) {
+            throw new Error('Informe um valor de amostragem maior que zero.');
+        }
+        const bySeconds = samplingModeEl.value === 'segundos';
+
         const common = {
             environment,
             confidence: Number(confidenceEl.value),
-            frame_step: Number(frameStepEl.value),
-            stabilize: stabilizeEl.checked
+            frame_step: bySeconds ? 1 : Math.max(1, Math.round(samplingValue)),
+            interval_s: bySeconds ? samplingValue : '',
+            criterion: criterionEl.value,
+            tracking: trackingEl.checked,
+            stabilize: stabilizeEl.value
         };
 
         let response;

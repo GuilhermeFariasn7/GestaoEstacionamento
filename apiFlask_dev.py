@@ -212,8 +212,9 @@ def tests_page():
 
 @app.route("/tests/<job_id>/review")
 def test_review_page(job_id):
-    """Página de avaliação manual pertencente exclusivamente ao módulo de testes."""
-    return render_template("test_review.html", job_id=job_id)
+    """Endereço antigo da revisão: a análise agora fica na etapa 4 da tela /tests."""
+    from flask import redirect
+    return redirect(f"/tests?job={job_id}")
 
 
 @app.route("/data")

@@ -1,80 +1,481 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Smart Parking | Revisão</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"><link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"><link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
-<style>.sample-stage{position:relative;width:100%;height:68vh;min-height:320px;background:#14141f;border-radius:10px;overflow:hidden}.sample-image{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border-radius:10px}.roi-overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.truth-btn.active{box-shadow:0 0 0 3px rgba(255,255,255,.25) inset;font-weight:700}.metric-card{min-height:100px}</style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Smart Parking | Revisão manual</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+<style>
+  .sample-stage{position:relative;width:100%;height:70vh;min-height:320px;background:#14141f;border-radius:10px;overflow:hidden}
+  .sample-image{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+  .roi-overlay{position:absolute;inset:0;width:100%;height:100%;cursor:pointer}
+  .region-row{border:1px solid rgba(127,127,127,.35);border-radius:8px;padding:.4rem .5rem;margin-bottom:.4rem}
+  .region-row.unmarked{border-color:#f5b301}
+  .truth-btn.active{font-weight:700;color:#fff}
+  .truth-btn.btn-outline-danger.active{background:#dc3545}
+  .truth-btn.btn-outline-success.active{background:#198754}
+  .truth-btn.btn-outline-secondary.active{background:#6c757d}
+  .regions-list{max-height:42vh;overflow:auto}
+  .kbd{display:inline-block;padding:0 .35rem;border:1px solid rgba(127,127,127,.6);border-radius:4px;font-size:.75rem}
+  .metrics-table td,.metrics-table th{padding:.2rem .4rem;font-size:.85rem}
+</style>
 </head>
 <body>
-<nav class="navbar navbar-dark sp-nav"><div class="container-fluid"><span class="navbar-brand fw-semibold"><i class="bi bi-p-square-fill me-2"></i>Smart Parking — Experimentos</span><div class="navbar-nav ms-auto flex-row gap-3"><a class="nav-link active" href="/tests">Experimentos</a></div></div></nav>
-<main class="container-fluid py-4"><div class="row g-4">
-<div class="col-xl-8"><div class="card sp-card"><div class="card-body p-3"><div class="d-flex justify-content-between align-items-center mb-3"><div><h4 class="mb-1">Revisão manual</h4><div id="sampleInfo" class="text-secondary">Carregando...</div></div><div class="btn-group"><button id="prev" class="btn btn-outline-secondary">Anterior</button><button id="next" class="btn btn-outline-secondary">Próxima</button></div></div><div id="sampleStage" class="sample-stage"><img id="sampleImage" class="sample-image" alt="Amostra do teste"><canvas id="roiOverlay" class="roi-overlay" aria-hidden="true"></canvas></div></div></div></div>
-<div class="col-xl-4"><div class="card sp-card mb-3"><div class="card-body"><h5>Gabarito da amostra</h5><p class="text-secondary small">Para cada vaga, marque o que realmente aparece na imagem. O resultado automático fica ao lado para conferência.</p><div id="regions"></div><button id="save" class="btn btn-primary w-100 mt-3"><i class="bi bi-save me-1"></i>Salvar amostra</button><div id="saveStatus" class="small text-secondary mt-2"></div></div></div>
-<div class="card sp-card"><div class="card-body"><h5>Métricas</h5><div class="row g-2" id="metricsCards"></div><div id="metricsText" class="small text-secondary mt-3"></div><div id="regionMetrics" class="table-responsive mt-3"></div><a id="metricsDownload" class="btn btn-outline-success w-100 mt-3" href="#"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Baixar métricas CSV</a></div></div></div>
-</div></main>
-<script>
-const api=()=>localStorage.getItem('smartparking:roiApiUrl')||'http://127.0.0.1:5001';
-const jobId='{{ job_id }}';
-let samples=[],index=0,offset=0,total=0,pageSize=100,regions=[],truth={},currentSample=null,regionPolygons={};
-async function req(p,o={}){const r=await fetch(api()+p,o);if(!r.ok)throw new Error((await r.json().catch(()=>({}))).error||'Erro');return r;}
-function pct(v){return v==null?'—':(v*100).toFixed(2)+'%';}
-async function loadPage(newOffset=0){
-    const d=await(await req('/api/tests/'+jobId+'/samples?offset='+newOffset+'&limit='+pageSize)).json();
-    samples=d.samples;regions=d.regions;regionPolygons=d.region_polygons||{};offset=d.offset;total=d.total;index=0;
-    if(!samples.length)throw new Error('Este teste não possui amostras.');
-    render();
-}
-async function goNext(){
-    if(index<samples.length-1){index++;render();return;}
-    if(offset+samples.length<total){await loadPage(offset+pageSize);}
-}
-async function goPrev(){
-    if(index>0){index--;render();return;}
-    if(offset>0){await loadPage(Math.max(0,offset-pageSize));index=samples.length-1;render();}
-}
-function render(){
-    const s=samples[index];
-    if(currentSample!==s.sample){currentSample=s.sample;truth=Object.assign({},s.truth||{});}
-    sampleImage.onload=drawRegions;
-    sampleImage.src=api()+'/api/tests/'+jobId+'/samples/'+encodeURIComponent(s.image);
-    if(sampleImage.complete) drawRegions();
-    sampleInfo.textContent=`Amostra ${s.sample+1} de ${total} · frame ${s.frame}${s.timestamp_s!==''?' · '+s.timestamp_s+' s':''}${s.tracking_estavel!==''?' · rastreamento '+(String(s.tracking_estavel)==='true'?'OK':'sem correspondência'):''}`;
-    regionsEl.innerHTML=regions.map(n=>{const t=truth[n],det=s.detections[n];return `<div class="border rounded p-2 mb-2"><div class="d-flex justify-content-between align-items-center mb-2"><strong>${n}</strong><span class="badge ${det==='ocupada'?'text-bg-danger':(det==='fora_de_vista'?'text-bg-secondary':'text-bg-success')}">YOLO: ${det==='fora_de_vista'?'fora de vista':det}</span></div><div class="btn-group w-100"><button class="btn btn-sm btn-outline-danger truth-btn ${t===true?'active':''}" data-region="${esc(n)}" data-value="true" aria-pressed="${t===true}" onclick="setTruth('${esc(n)}',true)">Ocupada</button><button class="btn btn-sm btn-outline-success truth-btn ${t===false?'active':''}" data-region="${esc(n)}" data-value="false" aria-pressed="${t===false}" onclick="setTruth('${esc(n)}',false)">Livre</button></div></div>`}).join('');
-    prev.disabled=index===0&&offset===0;
-    next.disabled=index===samples.length-1&&offset+samples.length>=total;
-    updateMetrics();
-}
-function drawRegions(){
-    const canvas=document.getElementById('roiOverlay'), stage=document.getElementById('sampleStage');
-    const ctx=canvas.getContext('2d');
-    const w=stage.clientWidth,h=stage.clientHeight;
-    canvas.width=Math.max(1,Math.round(w*devicePixelRatio));canvas.height=Math.max(1,Math.round(h*devicePixelRatio));
-    ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);ctx.clearRect(0,0,w,h);
-    if(!sampleImage.naturalWidth||!sampleImage.naturalHeight)return;
-    const scale=Math.min(w/sampleImage.naturalWidth,h/sampleImage.naturalHeight);
-    const ox=(w-sampleImage.naturalWidth*scale)/2,oy=(h-sampleImage.naturalHeight*scale)/2;
-    Object.entries(regionPolygons).forEach(([name,points],i)=>{
-      if(!Array.isArray(points)||points.length<3)return;
-      const isOcc=samples[index]?.detections?.[name]==='ocupada';
-      const color=isOcc?'#ff334f':'#00e5a0';
-      ctx.beginPath();points.forEach((p,j)=>{const x=ox+p[0]*scale,y=oy+p[1]*scale;j?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.closePath();
-      ctx.fillStyle=isOcc?'rgba(255,51,79,.16)':'rgba(0,229,160,.12)';ctx.fill();ctx.lineWidth=2.5;ctx.strokeStyle=color;ctx.stroke();
-      const xs=points.map(p=>ox+p[0]*scale),ys=points.map(p=>oy+p[1]*scale);const tx=Math.max(ox+2,Math.min(w-90,Math.min(...xs)+4)),ty=Math.max(oy+18,Math.min(h-4,Math.min(...ys)+17));
-      ctx.font='bold 12px Arial';const label=name;const tw=ctx.measureText(label).width+10;ctx.fillStyle=color;ctx.fillRect(tx-3,ty-14,tw,18);ctx.fillStyle='#111827';ctx.fillText(label,tx+2,ty-1);
-    });
-}
-window.addEventListener('resize',drawRegions);
-function esc(s){return s.replaceAll('\\','\\\\').replaceAll("'","\\'");}
-function setTruth(n,v){truth[n]=v;const buttons=regionsEl.querySelectorAll('button.truth-btn');buttons.forEach(b=>{const match=b.dataset.region===n&&b.dataset.value==String(v);if(b.dataset.region===n){b.classList.toggle('active',match);b.setAttribute('aria-pressed',String(match));}});saveStatus.textContent='Alteração pendente — clique em “Salvar amostra”.';}
+<nav class="navbar navbar-dark sp-nav">
+  <div class="container-fluid">
+    <span class="navbar-brand fw-semibold"><i class="bi bi-p-square-fill me-2"></i>Smart Parking — Gabarito manual</span>
+    <div class="navbar-nav ms-auto flex-row gap-3"><a class="nav-link active" href="/tests">Experimentos</a></div>
+  </div>
+</nav>
 
-async function save(){
-    if(Object.keys(truth).length<regions.length){if(!confirm('Nem todas as vagas desta amostra foram marcadas. Salvar mesmo assim?'))return;}
-    try{await req('/api/tests/'+jobId+'/ground-truth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({annotations:{[samples[index].sample]:truth}})});samples[index].truth=Object.assign({},truth);saveStatus.textContent='Gabarito salvo.';updateMetrics();}
-    catch(e){saveStatus.textContent=e.message;}
-}
-async function updateMetrics(){
-    try{const m=await(await req('/api/tests/'+jobId+'/metrics')).json();const o=m.overall||{};metricsCards.innerHTML=[['Acurácia',pct(o.accuracy)],['Precisão',pct(o.precision)],['Recall',pct(o.recall)],['FPR',pct(o.false_positive_rate)]].map(x=>`<div class="col-6"><div class="border rounded p-2 metric-card"><div class="small text-secondary">${x[0]}</div><strong>${x[1]}</strong></div></div>`).join('');metricsText.textContent=`Amostras avaliadas: ${m.annotated_samples}/${m.total_samples}. Comparações vaga/amostra: ${m.annotated_cells}/${m.total_cells}. Acertos: ${o.correct||0}. Erros: ${o.errors||0}. TP ${o.tp||0} · FP ${o.fp||0} · TN ${o.tn||0} · FN ${o.fn||0}.`;regionMetrics.innerHTML='<table class="table table-sm align-middle"><thead><tr><th>Vaga</th><th>Acertos</th><th>Erros</th><th>Acurácia</th><th>Precisão</th><th>Recall</th><th>FPR</th></tr></thead><tbody>'+Object.entries(m.per_region||{}).map(([n,v])=>`<tr><td>${n}</td><td>${v.correct||0}</td><td>${v.errors||0}</td><td>${pct(v.accuracy)}</td><td>${pct(v.precision)}</td><td>${pct(v.recall)}</td><td>${pct(v.false_positive_rate)}</td></tr>`).join('')+'</tbody></table>';metricsDownload.href=api()+'/api/tests/'+jobId+'/metrics/download';}
-    catch(e){metricsText.textContent=e.message;}
-}
-prev.onclick=()=>goPrev();next.onclick=()=>goNext();save.onclick=save;const regionsEl=document.getElementById('regions');loadPage().catch(e=>{sampleInfo.textContent=e.message;});
-</script></body></html>
+<main class="container-fluid py-3">
+  <div class="row g-3">
+    <div class="col-xl-8">
+      <div class="card sp-card">
+        <div class="card-body p-3">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <div>
+              <h4 class="mb-1">Revisão manual</h4>
+              <div id="sampleInfo" class="text-secondary small">Carregando...</div>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+              <div class="input-group input-group-sm" style="width:170px">
+                <span class="input-group-text">Ir para</span>
+                <input id="gotoInput" type="number" min="1" class="form-control" placeholder="nº">
+              </div>
+              <button id="btnFirstPending" class="btn btn-sm btn-outline-warning">Primeira pendente</button>
+              <div class="btn-group btn-group-sm">
+                <button id="btnPrev" class="btn btn-outline-secondary" title="Seta para a esquerda">&larr; Anterior</button>
+                <button id="btnNext" class="btn btn-outline-secondary" title="Seta para a direita">Próxima &rarr;</button>
+              </div>
+            </div>
+          </div>
+          <div id="sampleStage" class="sample-stage">
+            <img id="sampleImage" class="sample-image" alt="Amostra do teste">
+            <canvas id="roiOverlay" class="roi-overlay" aria-label="Clique em uma vaga para alternar ocupada/livre"></canvas>
+          </div>
+          <div class="small text-secondary mt-2">
+            Clique sobre a vaga na imagem para alternar <strong>ocupada</strong>/<strong>livre</strong>.
+            <span class="kbd">Enter</span> salva e avança ·
+            <span class="kbd">&larr;</span>/<span class="kbd">&rarr;</span> navegam ·
+            <span class="kbd">1</span>–<span class="kbd">9</span> alternam as nove primeiras vagas.
+            Cores: vermelho = ocupada, verde = livre, cinza = indeterminada, amarelo tracejado = sem marcação.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div class="card sp-card mb-3">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <h5 class="mb-0">Gabarito da amostra</h5>
+            <span id="progressBadge" class="badge text-bg-secondary">—</span>
+          </div>
+          <div class="progress my-2" style="height:6px"><div id="progressBar" class="progress-bar" style="width:0%"></div></div>
+          <div class="form-check form-switch mb-1">
+            <input class="form-check-input" type="checkbox" id="showYolo">
+            <label class="form-check-label small" for="showYolo">Mostrar a previsão do YOLO (desligado = anotação cega)</label>
+          </div>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="carryOver" checked>
+            <label class="form-check-label small" for="carryOver">Pré-preencher com o gabarito da amostra anterior</label>
+          </div>
+          <div id="prefillNotice" class="alert alert-warning py-1 px-2 small d-none">
+            Pré-preenchido com a amostra anterior. Confira cada vaga na imagem antes de salvar.
+          </div>
+          <div id="regions" class="regions-list"></div>
+          <div class="d-grid gap-2 mt-2">
+            <button id="btnSaveNext" class="btn btn-primary"><i class="bi bi-save me-1"></i>Salvar e próxima <span class="kbd ms-1">Enter</span></button>
+            <button id="btnSave" class="btn btn-outline-primary btn-sm">Salvar sem avançar</button>
+          </div>
+          <div id="saveStatus" class="small text-secondary mt-2"></div>
+        </div>
+      </div>
+
+      <div class="card sp-card">
+        <div class="card-body">
+          <h5>Métricas (amostras já anotadas)</h5>
+          <div id="metricsText" class="small text-secondary mb-2"></div>
+          <div class="table-responsive"><table class="table table-sm metrics-table align-middle mb-2" id="metricsTable"></table></div>
+          <div class="small text-secondary mb-2" id="metricsNote">
+            Classe positiva = vaga ocupada (convenção do seu TCC). A linha “Precisão (livre positiva)”
+            usa a convenção que gera os 60,45% de Rocha (2025).
+          </div>
+          <details class="small mb-2">
+            <summary>Métricas por vaga</summary>
+            <div id="regionMetrics" class="table-responsive mt-2"></div>
+          </details>
+          <a id="metricsDownload" class="btn btn-outline-success w-100" href="#"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Baixar métricas CSV</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const API = () => localStorage.getItem('smartparking:roiApiUrl') || 'http://127.0.0.1:5001';
+  const JOB_ID = '{{ job_id }}';
+  const PAGE_SIZE = 100;
+  const IGNORE = 'ignorar';
+
+  const $ = id => document.getElementById(id);
+  const imageEl = $('sampleImage'), canvasEl = $('roiOverlay'), stageEl = $('sampleStage');
+  const regionsEl = $('regions'), saveStatusEl = $('saveStatus');
+
+  const state = {
+    page: [], offset: 0, total: 0, regions: [], regionPolygons: {},
+    pos: 0, truth: {}, dirty: false, prefilled: false, hitPolygons: [], complete: 0,
+  };
+
+  const showYoloEl = $('showYolo'), carryEl = $('carryOver');
+  showYoloEl.checked = localStorage.getItem('smartparking:review:showYolo') === '1';
+  carryEl.checked = localStorage.getItem('smartparking:review:carry') !== '0';
+  showYoloEl.onchange = () => { localStorage.setItem('smartparking:review:showYolo', showYoloEl.checked ? '1' : '0'); render(); };
+  carryEl.onchange = () => localStorage.setItem('smartparking:review:carry', carryEl.checked ? '1' : '0');
+
+  async function req(path, options = {}) {
+    const response = await fetch(API() + path, options);
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || ('Erro HTTP ' + response.status));
+    }
+    return response.json();
+  }
+
+  const esc = text => String(text).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const pct = v => (v === null || v === undefined) ? '—' : (v * 100).toFixed(2).replace('.', ',') + '%';
+  const current = () => state.page[state.pos - state.offset];
+  const evaluable = (sample, name) => sample.detections[name] !== 'fora_de_vista';
+  const isComplete = (sample, truth) => state.regions.every(n => !evaluable(sample, n) || n in truth);
+
+  async function loadPageFor(pos) {
+    const offset = Math.floor(pos / PAGE_SIZE) * PAGE_SIZE;
+    if (state.page.length && offset === state.offset) return;
+    const data = await req(`/api/tests/${JOB_ID}/samples?offset=${offset}&limit=${PAGE_SIZE}`);
+    state.page = data.samples;
+    state.offset = data.offset;
+    state.total = data.total;
+    state.regions = data.regions;
+    state.regionPolygons = data.region_polygons || {};
+    updateProgress(data.complete_samples);
+  }
+
+  async function goTo(pos, carry = null) {
+    if (pos < 0 || (state.total && pos >= state.total)) return;
+    if (state.dirty && !state.prefilled && !confirm('Há marcações não salvas nesta amostra. Descartar?')) return;
+    await loadPageFor(pos);
+    state.pos = pos;
+    const sample = current();
+    state.truth = Object.assign({}, sample.truth || {});
+    state.dirty = false;
+    state.prefilled = false;
+
+    if (carry && carryEl.checked && Object.keys(state.truth).length === 0) {
+      state.regions.forEach(name => {
+        if (evaluable(sample, name) && name in carry) state.truth[name] = carry[name];
+      });
+      state.prefilled = Object.keys(state.truth).length > 0;
+      state.dirty = state.prefilled;
+    }
+    $('gotoInput').value = '';
+    render();
+  }
+
+  function render() {
+    const sample = current();
+    if (!sample) return;
+
+    imageEl.onload = drawRegions;
+    const src = API() + `/api/tests/${JOB_ID}/samples/` + encodeURIComponent(sample.image);
+    if (imageEl.dataset.src !== src) { imageEl.dataset.src = src; imageEl.src = src; } else { drawRegions(); }
+
+    const parts = [`Amostra ${sample.sample + 1} de ${state.total}`, `quadro ${sample.frame}`];
+    if (sample.timestamp_s !== '') parts.push(formatTime(Number(sample.timestamp_s)));
+    if (sample.tracking_estavel !== '') parts.push('rastreamento ' + (String(sample.tracking_estavel).toLowerCase() === 'true' ? 'OK' : 'sem correspondência'));
+    $('sampleInfo').textContent = parts.join(' · ');
+
+    const showYolo = showYoloEl.checked;
+    regionsEl.innerHTML = state.regions.map((name, i) => {
+      const det = sample.detections[name];
+      if (det === 'fora_de_vista') {
+        return `<div class="region-row"><strong>${esc(name)}</strong> <span class="badge text-bg-secondary ms-1">fora de vista — não avaliada</span></div>`;
+      }
+      const t = state.truth[name];
+      const yolo = showYolo ? `<span class="badge ${det === 'ocupada' ? 'text-bg-danger' : 'text-bg-success'}">YOLO: ${esc(det)}</span>` : '';
+      const btn = (value, label, cls) =>
+        `<button class="btn btn-sm ${cls} truth-btn ${t === value ? 'active' : ''}" data-region="${esc(name)}" data-value="${value}">${label}</button>`;
+      return `<div class="region-row ${t === undefined ? 'unmarked' : ''}">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <strong>${i < 9 ? `<span class="kbd me-1">${i + 1}</span>` : ''}${esc(name)}</strong>${yolo}
+        </div>
+        <div class="btn-group btn-group-sm w-100">
+          ${btn(true, 'Ocupada', 'btn-outline-danger')}
+          ${btn(false, 'Livre', 'btn-outline-success')}
+          ${btn(IGNORE, '?', 'btn-outline-secondary')}
+        </div></div>`;
+    }).join('');
+
+    $('prefillNotice').classList.toggle('d-none', !state.prefilled);
+    $('btnPrev').disabled = state.pos === 0;
+    $('btnNext').disabled = state.pos >= state.total - 1;
+    saveStatusEl.textContent = state.dirty && !state.prefilled ? 'Alteração pendente — salve antes de sair.' : '';
+  }
+
+  function formatTime(seconds) {
+    if (!isFinite(seconds)) return '';
+    const h = Math.floor(seconds / 3600), m = Math.floor(seconds % 3600 / 60), s = Math.floor(seconds % 60);
+    return (h ? h + ':' : '') + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+
+  regionsEl.addEventListener('click', event => {
+    const button = event.target.closest('button.truth-btn');
+    if (!button) return;
+    const raw = button.dataset.value;
+    setTruth(button.dataset.region, raw === 'true' ? true : raw === 'false' ? false : IGNORE);
+  });
+
+  function setTruth(name, value) {
+    state.truth[name] = value;
+    state.dirty = true;
+    state.prefilled = false;
+    render();
+  }
+
+  function toggleRegion(name) {
+    const sample = current();
+    if (!sample || !evaluable(sample, name)) return;
+    setTruth(name, state.truth[name] === true ? false : true);
+  }
+
+  // ---------- desenho das vagas ----------
+  function polygonsFor(sample) {
+    if (sample.rois) return sample.rois;                       // por amostra (estabilizadas)
+    const out = {};
+    Object.entries(state.regionPolygons).forEach(([name, pts]) => { out[name] = [pts]; });
+    return out;                                                // testes antigos
+  }
+
+  function drawRegions() {
+    const sample = current();
+    const ctx = canvasEl.getContext('2d');
+    const w = stageEl.clientWidth, h = stageEl.clientHeight, dpr = window.devicePixelRatio || 1;
+    canvasEl.width = Math.max(1, Math.round(w * dpr));
+    canvasEl.height = Math.max(1, Math.round(h * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    state.hitPolygons = [];
+    if (!sample || !imageEl.naturalWidth) return;
+
+    const scale = Math.min(w / imageEl.naturalWidth, h / imageEl.naturalHeight);
+    const ox = (w - imageEl.naturalWidth * scale) / 2, oy = (h - imageEl.naturalHeight * scale) / 2;
+    const showYolo = showYoloEl.checked;
+
+    Object.entries(polygonsFor(sample)).forEach(([name, parts]) => {
+      const t = state.truth[name];
+      const hidden = !evaluable(sample, name);
+      const color = hidden ? '#9aa0a6' : t === true ? '#ff334f' : t === false ? '#00d68f' : t === IGNORE ? '#9aa0a6' : '#f5b301';
+      let labelX = Infinity, labelY = Infinity, biggest = 0;
+
+      (parts || []).forEach(points => {
+        if (!Array.isArray(points) || points.length < 3) return;
+        const screen = points.map(([x, y]) => [ox + x * scale, oy + y * scale]);
+        state.hitPolygons.push({ name, points: screen });
+        ctx.beginPath();
+        screen.forEach(([x, y], j) => j ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
+        ctx.closePath();
+        ctx.setLineDash(t === undefined && !hidden ? [6, 4] : []);
+        ctx.fillStyle = color + '2a';
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = color;
+        ctx.stroke();
+        const area = Math.abs(screen.reduce((acc, [x, y], k) => {
+          const [nx, ny] = screen[(k + 1) % screen.length]; return acc + x * ny - nx * y; }, 0));
+        if (area > biggest) {
+          biggest = area;
+          labelX = Math.min(...screen.map(p => p[0]));
+          labelY = Math.min(...screen.map(p => p[1]));
+        }
+      });
+      ctx.setLineDash([]);
+      if (!isFinite(labelX)) return;
+
+      let label = name;
+      if (showYolo && !hidden) label += ' · Y:' + (sample.detections[name] === 'ocupada' ? 'oc' : 'lv');
+      ctx.font = 'bold 12px Arial';
+      const tw = ctx.measureText(label).width + 8;
+      const tx = Math.max(ox + 2, Math.min(w - tw - 2, labelX + 3));
+      const ty = Math.max(oy + 16, Math.min(h - 4, labelY + 16));
+      ctx.fillStyle = color;
+      ctx.fillRect(tx - 2, ty - 13, tw, 17);
+      ctx.fillStyle = '#111827';
+      ctx.fillText(label, tx + 2, ty);
+    });
+  }
+
+  function pointInPolygon(x, y, points) {
+    let inside = false;
+    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+      const [xi, yi] = points[i], [xj, yj] = points[j];
+      if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
+    }
+    return inside;
+  }
+
+  canvasEl.addEventListener('click', event => {
+    const rect = canvasEl.getBoundingClientRect();
+    const x = event.clientX - rect.left, y = event.clientY - rect.top;
+    const hit = state.hitPolygons.find(p => pointInPolygon(x, y, p.points));
+    if (hit) toggleRegion(hit.name);
+  });
+  window.addEventListener('resize', drawRegions);
+
+  // ---------- salvar ----------
+  async function save() {
+    const sample = current();
+    if (!sample) return false;
+    const pending = state.regions.filter(n => evaluable(sample, n) && !(n in state.truth));
+    if (pending.length && !confirm(`${pending.length} vaga(s) sem marcação (${pending.join(', ')}). Salvar mesmo assim?`)) return false;
+
+    // Envia todas as vagas: as sem marcação seguem como null para
+    // apagar marcações antigas que o usuário tenha removido.
+    const annotations = {};
+    state.regions.forEach(n => { annotations[n] = (n in state.truth) ? state.truth[n] : null; });
+    try {
+      const result = await req(`/api/tests/${JOB_ID}/ground-truth`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ annotations: { [sample.sample]: annotations } })
+      });
+      const wasComplete = isComplete(sample, sample.truth || {});
+      sample.truth = Object.assign({}, state.truth);
+      updateProgress(state.complete + (isComplete(sample, sample.truth) ? 1 : 0) - (wasComplete ? 1 : 0));
+      state.dirty = false;
+      state.prefilled = false;
+      saveStatusEl.textContent = 'Amostra ' + (sample.sample + 1) + ' salva.';
+      renderMetrics(result.metrics);
+      return true;
+    } catch (error) {
+      saveStatusEl.textContent = 'Erro ao salvar: ' + error.message;
+      return false;
+    }
+  }
+
+  async function saveAndNext() {
+    if (!(await save())) return;
+    if (state.pos < state.total - 1) await goTo(state.pos + 1, Object.assign({}, state.truth));
+    else render();
+  }
+
+  // ---------- métricas ----------
+  function updateProgress(complete) {
+    if (complete === undefined || complete === null || !state.total) return;
+    state.complete = complete;
+    $('progressBadge').textContent = `${complete}/${state.total} completas`;
+    $('progressBar').style.width = (complete / state.total * 100).toFixed(1) + '%';
+  }
+
+  async function refreshMetrics() {
+    try { renderMetrics(await req(`/api/tests/${JOB_ID}/metrics`)); }
+    catch (error) { $('metricsText').textContent = error.message; }
+  }
+
+  function renderMetrics(m) {
+    if (!m) return;
+    const o = m.overall || {}, r = m.rocha_2025 || {};
+    const tempo = m.tempo_por_quadro_ms ? ` Tempo médio por quadro: ${String(m.tempo_por_quadro_ms.media).replace('.', ',')} ms.` : '';
+    $('metricsText').textContent =
+      `Amostras com anotação: ${m.annotated_samples}/${m.total_samples}. ` +
+      `Observações (vaga × amostra): ${m.annotated_cells}/${m.total_cells}` +
+      (m.ignored_cells ? `, ${m.ignored_cells} indeterminada(s)` : '') +
+      (m.out_of_view_cells ? `, ${m.out_of_view_cells} fora de vista` : '') + '. ' +
+      `TP ${o.tp || 0} · FP ${o.fp || 0} · TN ${o.tn || 0} · FN ${o.fn || 0}.` + tempo;
+
+    const rows = [
+      ['Acurácia', o.accuracy, r.accuracy],
+      ['Precisão', o.precision, r.precision],
+      ['Recall', o.recall, r.recall],
+      ['FPR', o.false_positive_rate, r.false_positive_rate],
+      ['F1', o.f1, r.f1],
+      ['Precisão (livre positiva)', o.precision_livre, r.precision_livre],
+      ['Recall (livre positiva)', o.recall_livre, r.recall_livre],
+    ];
+    $('metricsTable').innerHTML = '<thead><tr><th></th><th>Este teste</th><th>Rocha (2025)</th></tr></thead><tbody>' +
+      rows.map(([label, a, b]) => `<tr><td>${label}</td><td><strong>${pct(a)}</strong></td><td>${pct(b)}</td></tr>`).join('') +
+      '</tbody>';
+
+    $('regionMetrics').innerHTML = '<table class="table table-sm metrics-table"><thead><tr><th>Vaga</th><th>N</th><th>Acc.</th><th>Prec.</th><th>Rec.</th><th>FPR</th></tr></thead><tbody>' +
+      Object.entries(m.per_region || {}).map(([n, v]) =>
+        `<tr><td>${esc(n)}</td><td>${v.total}</td><td>${pct(v.accuracy)}</td><td>${pct(v.precision)}</td><td>${pct(v.recall)}</td><td>${pct(v.false_positive_rate)}</td></tr>`
+      ).join('') + '</tbody></table>';
+    $('metricsDownload').href = API() + `/api/tests/${JOB_ID}/metrics/download`;
+  }
+
+  async function firstPending() {
+    const data = await req(`/api/tests/${JOB_ID}/samples?offset=0&limit=1`);
+    updateProgress(data.complete_samples);
+    if (data.first_unannotated === null || data.first_unannotated === undefined) {
+      saveStatusEl.textContent = 'Todas as amostras estão anotadas.';
+      return;
+    }
+    const carry = data.first_unannotated > 0 ? await truthOf(data.first_unannotated - 1) : null;
+    await goTo(data.first_unannotated, carry);
+  }
+
+  async function truthOf(pos) {
+    const offset = Math.floor(pos / PAGE_SIZE) * PAGE_SIZE;
+    if (state.page.length && offset === state.offset) return Object.assign({}, state.page[pos - offset].truth);
+    const data = await req(`/api/tests/${JOB_ID}/samples?offset=${pos}&limit=1`);
+    return data.samples.length ? Object.assign({}, data.samples[0].truth) : null;
+  }
+
+  // ---------- controles ----------
+  $('btnPrev').onclick = () => goTo(state.pos - 1);
+  $('btnNext').onclick = () => goTo(state.pos + 1, Object.assign({}, state.truth));
+  $('btnSave').onclick = () => save().then(render);
+  $('btnSaveNext').onclick = saveAndNext;
+  $('btnFirstPending').onclick = () => firstPending().catch(e => { saveStatusEl.textContent = e.message; });
+  $('gotoInput').addEventListener('keydown', event => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    event.stopPropagation();
+    const n = parseInt(event.target.value, 10);
+    if (n >= 1 && n <= state.total) goTo(n - 1);
+  });
+
+  document.addEventListener('keydown', event => {
+    if (event.target.tagName === 'INPUT') return;
+    if (event.key === 'Enter') { event.preventDefault(); saveAndNext(); }
+    else if (event.key === 'ArrowRight') { event.preventDefault(); $('btnNext').click(); }
+    else if (event.key === 'ArrowLeft') { event.preventDefault(); $('btnPrev').click(); }
+    else if (/^[1-9]$/.test(event.key)) {
+      const name = state.regions[Number(event.key) - 1];
+      if (name) toggleRegion(name);
+    }
+  });
+
+  window.addEventListener('beforeunload', event => {
+    if (state.dirty && !state.prefilled) { event.preventDefault(); event.returnValue = ''; }
+  });
+
+  // ---------- início ----------
+  (async () => {
+    try {
+      await loadPageFor(0);
+      if (!state.total) throw new Error('Este teste não possui amostras.');
+      await goTo(0);
+      await refreshMetrics();
+    } catch (error) {
+      $('sampleInfo').textContent = error.message;
+    }
+  })();
+})();
+</script>
+</body>
+</html>

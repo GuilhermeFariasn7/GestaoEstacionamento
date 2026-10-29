@@ -1,187 +1,318 @@
 <!doctype html>
 <html lang="pt-BR">
-
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Smart Parking | Testes</title>
-
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/tests.css') }}">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Smart Parking | Experimentos do TCC</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/experimentos.css') }}">
 </head>
-
 <body>
 
-    <nav class="navbar navbar-dark sp-nav">
-        <div class="container-fluid">
-            <span class="navbar-brand fw-semibold">
-                <i class="bi bi-p-square-fill me-2"></i>Experimentos
-            </span>
+<header class="topbar">
+  <div class="brand"><span class="brand-logo">P</span>Smart Parking <small>Experimentos do TCC</small></div>
+  <button id="btnHistory" class="btn btn-ghost-light btn-sm">Histórico e tabelas do TCC</button>
+</header>
+
+<nav class="stepper" id="stepper">
+  <button class="step" data-step="1"><span class="num">1</span><span><b>Vídeo</b><small id="sum1">Escolha o vídeo</small></span></button>
+  <button class="step" data-step="2"><span class="num">2</span><span><b>Vagas</b><small id="sum2">Defina as vagas</small></span></button>
+  <button class="step" data-step="3"><span class="num">3</span><span><b>Executar</b><small id="sum3">Parâmetros e YOLO</small></span></button>
+  <button class="step" data-step="4"><span class="num">4</span><span><b>Análise</b><small id="sum4">Gabarito e métricas</small></span></button>
+</nav>
+
+<main class="content">
+
+  <!-- ================= 1. VÍDEO ================= -->
+  <section class="panel" data-panel="1">
+    <div class="panel-head">
+      <div><h1>1. Escolha o vídeo</h1><p>Selecione um vídeo já enviado ou envie um novo do seu computador.</p></div>
+    </div>
+    <div class="grid grid-2">
+      <div class="card">
+        <div class="card-title"><h2>Vídeos disponíveis</h2><button id="btnReloadVideos" class="btn btn-sm">Atualizar</button></div>
+        <div id="videoList" class="video-list"><div class="empty">Carregando...</div></div>
+        <div class="upload-box">
+          <div class="btn-row">
+            <label class="btn btn-dark btn-sm" for="videoFile">Enviar vídeo do computador</label>
+            <input id="videoFile" type="file" accept="video/*,.mp4,.avi,.mov,.mkv,.webm" class="hidden">
+            <span id="uploadText" class="muted small">Formatos: mp4, avi, mov, mkv, webm.</span>
+          </div>
+          <div id="uploadProgress" class="progress hidden" style="margin-top:.6rem"><div></div></div>
         </div>
-    </nav>
-
-    <main class="sp-main">
-
-        <header class="sp-page-header">
-            <h1>Testes e avaliação</h1>
-            <p>Configure o ambiente, escolha o vídeo e inicie a análise.</p>
-        </header>
-
-        <section class="sp-form-card">
-
-            <div class="sp-form-scroll">
-
-                <!-- Ambiente -->
-                <div class="sp-block">
-                    <h2 class="sp-block-title">
-                        <i class="bi bi-geo-alt"></i>Ambiente
-                    </h2>
-
-                    <div class="sp-field">
-                        <label class="sp-label" for="envSelect">Ambiente a testar</label>
-                        <select class="form-control" id="envSelect">
-                            <option value="">Carregando ambientes...</option>
-                        </select>
-                        <p class="form-text" id="envInfoText">Selecione um ambiente configurado.</p>
-                    </div>
-
-                    <button id="toggleConfigBtn" type="button" class="btn btn-outline-secondary sp-btn-block">
-                        <i class="bi bi-bounding-box me-1"></i>Configurar vagas deste ambiente
-                    </button>
-                </div>
-
-                <!-- Fonte de vídeo -->
-                <div class="sp-block">
-                    <h2 class="sp-block-title">
-                        <i class="bi bi-camera-video"></i>Fonte de vídeo
-                    </h2>
-
-                    <div class="sp-field">
-                        <label class="sp-label" for="sourceMode">Vídeo a analisar</label>
-                        <select class="form-control" id="sourceMode">
-                            <option value="saved">Usar a fonte salva no ambiente</option>
-                            <option value="upload">Enviar um vídeo novo</option>
-                            <option value="path">Digitar outro caminho/URL</option>
-                        </select>
-                        <p class="form-text">
-                            Enviar outro vídeo permite testar as mesmas vagas contra uma gravação
-                            diferente (outro horário, ângulo ou câmera), para comparar depois.
-                        </p>
-                    </div>
-
-                    <div class="sp-field d-none" id="sourceUploadGroup">
-                        <label class="sp-label" for="sourceVideoFile">Selecionar vídeo</label>
-                        <input class="form-control" id="sourceVideoFile" type="file" accept="video/*">
-                    </div>
-
-                    <div class="sp-field d-none" id="sourcePathGroup">
-                        <label class="sp-label" for="sourcePathInput">Caminho ou URL do vídeo</label>
-                        <input class="form-control" id="sourcePathInput" placeholder="Ex.: data/video_noite.mp4">
-                    </div>
-                </div>
-
-                <!-- Parâmetros -->
-                <div class="sp-block">
-                    <h2 class="sp-block-title">
-                        <i class="bi bi-sliders"></i>Parâmetros
-                    </h2>
-
-                    <div class="sp-field">
-                        <label class="sp-label" for="confidence">
-                            Confiança YOLO
-                            <span id="confidenceValue" class="sp-value">0.40</span>
-                        </label>
-                        <input id="confidence" class="form-range" type="range" min="0.1" max="0.9" step="0.05"
-                            value="0.4">
-                        <p class="form-text">
-                            Mais alto = menos falsos positivos, mas pode perder carros parcialmente visíveis.
-                        </p>
-                    </div>
-
-                    <div class="sp-field-row">
-                        <div class="sp-field">
-                            <label class="sp-label" for="frameStep">Analisar 1 a cada N frames</label>
-                            <input id="frameStep" class="form-control" type="number" min="1" value="5">
-                        </div>
-
-                        <div class="sp-field sp-field-check">
-                            <div class="form-check">
-                                <input id="stabilize" class="form-check-input" type="checkbox">
-                                <label class="form-check-label" for="stabilize">Estabilização</label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Histórico -->
-                <div class="sp-block">
-                    <button id="toggleHistoryBtn" type="button" class="btn btn-outline-secondary sp-btn-block">
-                        <i class="bi bi-clock-history me-1"></i>Ver histórico e comparar testes
-                    </button>
-                </div>
-
-            </div><!-- /.sp-form-scroll -->
-
-            <footer class="sp-form-footer">
-                <button id="startTest" class="btn btn-primary sp-btn-primary">
-                    <i class="bi bi-play-fill me-1"></i>Iniciar teste
-                </button>
-            </footer>
-
-        </section>
-
-        <section id="resultCard" class="sp-result-card d-none">
-            <div class="sp-result-head">
-                <span id="statusText">Preparando...</span>
-                <span id="progressText">0%</span>
-            </div>
-            <div class="progress sp-progress">
-                <div id="progressBar" class="progress-bar" style="width:0%"></div>
-            </div>
-            <div id="resultText" class="sp-result-text"></div>
-            <div id="summaryTable" class="sp-summary"></div>
-            <div id="actions" class="sp-actions"></div>
-        </section>
-
-    </main>
-
-    <!-- Modal: configuração de vagas -->
-    <div class="modal fade" id="configModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content sp-modal">
-                <div class="modal-body sp-modal-body">
-                    <iframe id="configFrame" src="about:blank" title="Configuração de vagas"></iframe>
-                </div>
-            </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><h2>Pré-visualização</h2></div>
+        <div class="stage" id="videoStage"><img id="videoPreview" alt=""><div class="stage-msg" id="videoStageMsg">Nenhum vídeo selecionado.</div></div>
+        <div class="info-grid" id="videoInfo"></div>
+        <div class="btn-row end" style="margin-top:1rem">
+          <button id="btnTo2" class="btn btn-primary btn-lg" disabled>Continuar para as vagas →</button>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 2. VAGAS ================= -->
+  <section class="panel hidden" data-panel="2">
+    <div class="panel-head">
+      <div><h1>2. Defina as vagas</h1><p>As vagas são desenhadas sobre um quadro deste vídeo, para ficarem exatamente na mesma posição e resolução analisadas pelo YOLO.</p></div>
+    </div>
+    <div class="grid grid-main">
+      <div class="card">
+        <div class="stage tall" id="envStage"><img id="envPreview" alt=""><canvas id="envCanvas"></canvas><div class="stage-msg hidden" id="envStageMsg"></div></div>
+        <div class="legend"><span><i style="background:#22c55e"></i>vaga configurada</span></div>
+      </div>
+      <div>
+        <div class="card">
+          <div class="field">
+            <label for="envSelect">Ambiente (conjunto de vagas)</label>
+            <select id="envSelect" class="input"></select>
+            <div class="hint">Vídeos da mesma câmera, no mesmo ângulo, podem usar o mesmo ambiente.</div>
+          </div>
+          <div class="field hidden" id="newEnvField">
+            <label for="newEnvName">Nome do novo ambiente</label>
+            <input id="newEnvName" class="input" placeholder="ex.: BLOCO_C_CAMERA1" maxlength="60">
+            <div class="hint">Use letras, números, - e _ (sem espaços).</div>
+          </div>
+          <div id="envStatus"></div>
+          <button id="btnEditVagas" class="btn btn-dark btn-block">Definir vagas sobre este vídeo</button>
+        </div>
+        <div class="card">
+          <div class="btn-row" style="justify-content:space-between">
+            <button class="btn" data-goto="1">← Voltar</button>
+            <button id="btnTo3" class="btn btn-primary" disabled>Continuar →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 3. EXECUTAR ================= -->
+  <section class="panel hidden" data-panel="3">
+    <div class="panel-head">
+      <div><h1>3. Execute o teste</h1><p>O sistema tira uma amostra no intervalo escolhido e o YOLO classifica cada vaga.</p></div>
+    </div>
+    <div class="grid grid-2">
+      <div class="card">
+        <div class="card-title"><h2>Parâmetros</h2></div>
+        <div class="field">
+          <label for="runLabel">Nome deste teste</label>
+          <input id="runLabel" class="input" maxlength="80" placeholder="ex.: Vídeo 1 - câmera fixa">
+          <div class="hint">É o nome que aparece no histórico e nas tabelas do TCC.</div>
+        </div>
+        <div class="row-2">
+          <div class="field">
+            <label for="runInterval">Intervalo entre amostras (s)</label>
+            <input id="runInterval" class="input" type="number" min="0.1" step="0.1" value="5">
+            <div class="hint">5 s = mesmo intervalo de Rocha (2025).</div>
+          </div>
+          <div class="field">
+            <label for="runSpeed">Velocidade do vídeo</label>
+            <select id="runSpeed" class="input">
+              <option value="1" selected>Normal (1×)</option>
+              <option value="2">Acelerado 2×</option>
+              <option value="4">Acelerado 4×</option>
+              <option value="8">Acelerado 8×</option>
+              <option value="16">Acelerado 16×</option>
+              <option value="outro">Outro fator...</option>
+            </select>
+            <input id="runSpeedOther" class="input hidden" type="number" min="0.1" step="0.1" placeholder="fator, ex.: 3" style="margin-top:.4rem">
+          </div>
+        </div>
+        <div class="field">
+          <label for="runConfidence">Confiança mínima do YOLO: <span id="runConfidenceValue">0,40</span></label>
+          <input id="runConfidence" type="range" min="0.1" max="0.9" step="0.05" value="0.4">
+        </div>
+        <div class="field">
+          <label for="runCriterion">Critério de ocupação</label>
+          <select id="runCriterion" class="input">
+            <option value="sobreposicao" selected>Sobreposição ≥ 15% da caixa do veículo (este sistema)</option>
+            <option value="centro">Centro da caixa dentro da vaga (critério de Rocha, 2025)</option>
+          </select>
+        </div>
+        <details class="advanced">
+          <summary>Opções avançadas</summary>
+          <div class="field">
+            <label for="runStabilize">Estabilização das vagas</label>
+            <select id="runStabilize" class="input">
+              <option value="padrao" selected>Conforme o ambiente</option>
+              <option value="true">Forçar ligada</option>
+              <option value="false">Forçar desligada</option>
+            </select>
+          </div>
+          <label class="check"><input type="checkbox" id="runTracking"> Usar rastreamento (ByteTrack)</label>
+          <div class="hint muted small">Deixe desligado: com amostras espaçadas, o rastreador atrasa a detecção de carros que acabaram de chegar.</div>
+        </details>
+      </div>
+      <div class="card">
+        <div class="card-title"><h2>Resumo</h2></div>
+        <dl class="summary-list" id="runSummary"></dl>
+        <div class="estimate" id="runEstimate" style="margin-top:.9rem"></div>
+        <div class="btn-row" style="justify-content:space-between;margin-top:1rem">
+          <button class="btn" data-goto="2">← Voltar</button>
+          <button id="btnStart" class="btn btn-primary btn-lg">▶ Iniciar teste</button>
+        </div>
+        <div class="run-status hidden" id="runStatus">
+          <div class="line"><span id="runStatusText">Processando...</span><span id="runPct">0%</span></div>
+          <div class="progress big"><div id="runBar"></div></div>
+          <div class="btn-row" style="justify-content:space-between;margin-top:.6rem">
+            <span class="muted small" id="runDetail"></span>
+            <button id="btnCancel" class="btn btn-danger btn-sm">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 4. ANÁLISE ================= -->
+  <section class="panel hidden" data-panel="4">
+    <div class="card" style="margin-bottom:1rem">
+      <div class="analysis-head">
+        <div>
+          <h1 id="anTitle">Análise</h1>
+          <div class="muted small" id="anSubtitle"></div>
+        </div>
+        <div class="btn-row">
+          <span class="badge" id="anProgressBadge">—</span>
+          <a class="btn btn-sm" id="anDownloadData" href="#">Baixar previsões (CSV)</a>
+          <a class="btn btn-sm" id="anDownloadMetrics" href="#">Baixar métricas (CSV)</a>
+        </div>
+      </div>
     </div>
 
-    <!-- Modal: histórico de testes -->
-    <div class="modal fade" id="historyModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content sp-modal">
-                <div class="sp-modal-header">
-                    <h5 class="modal-title">
-                        <i class="bi bi-clock-history me-2"></i>Histórico de testes
-                    </h5>
-                    <div>
-                        <button id="refreshHistoryBtn" type="button" class="btn btn-outline-secondary btn-sm me-2">
-                            <i class="bi bi-arrow-clockwise"></i>
-                        </button>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-                    </div>
-                </div>
-                <div class="modal-body sp-history-body">
-                    <div id="historyTableWrap"></div>
-                </div>
-            </div>
+    <div class="grid grid-main">
+      <div class="card">
+        <div class="nav-row">
+          <div class="btn-row">
+            <button id="anPrev" class="btn btn-sm">← Anterior</button>
+            <span class="sample-info" id="anInfo">—</span>
+            <button id="anNext" class="btn btn-sm">Próxima →</button>
+          </div>
+          <div class="btn-row">
+            <div class="goto"><span class="muted small">Ir para</span><input id="anGoto" class="input" type="number" min="1"></div>
+            <button id="anFirstPending" class="btn btn-sm">Primeira pendente</button>
+          </div>
         </div>
-    </div>
+        <div class="stage tall" id="anStage"><img id="anImage" alt=""><canvas id="anCanvas" class="clickable"></canvas></div>
+        <div class="legend">
+          <span><i style="background:#ef4444"></i>ocupada</span>
+          <span><i style="background:#22c55e"></i>livre</span>
+          <span><i style="background:#9ca3af"></i>indeterminada / fora de vista</span>
+          <span><i style="background:#f59e0b"></i>ainda não marcada</span>
+          <span class="muted">· clique na vaga para alternar · <span class="kbd">Enter</span> salva e avança · <span class="kbd">←</span><span class="kbd">→</span> navegam · <span class="kbd">1</span>–<span class="kbd">9</span> alternam vagas</span>
+        </div>
+        <div class="timeline" id="anTimeline" title="Cada quadradinho é uma amostra"></div>
+        <div class="legend">
+          <span><i style="background:#d1d5db"></i>pendente</span>
+          <span><i style="background:#fcd34d"></i>incompleta</span>
+          <span><i style="background:#4ade80"></i>anotada, YOLO acertou</span>
+          <span><i style="background:#ef4444"></i>anotada, YOLO errou alguma vaga</span>
+        </div>
+      </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ url_for('static', filename='js/tests.js') }}"></script>
+      <div>
+        <div class="card">
+          <div class="card-title"><h2>Gabarito desta amostra</h2></div>
+          <label class="check"><input type="checkbox" id="anShowYolo"> Mostrar o que o YOLO previu</label>
+          <label class="check" style="margin-top:.3rem"><input type="checkbox" id="anCarry" checked> Pré-preencher com a amostra anterior</label>
+          <div class="alert alert-warn hidden" id="anPrefill" style="margin:.6rem 0 0">Pré-preenchida com a amostra anterior. Confira as vagas na imagem e corrija o que mudou.</div>
+          <div class="regions-list" id="anRegions"></div>
+          <button id="anSaveNext" class="btn btn-primary btn-block btn-lg">Salvar e próxima <span class="kbd" style="margin-left:.3rem">Enter</span></button>
+          <div class="muted small" id="anSaveStatus" style="margin-top:.4rem;min-height:1.2em"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><h2>Métricas</h2><span class="muted small">só amostras anotadas</span></div>
+          <div class="confusion" id="anConfusion"></div>
+          <table class="metrics-table" id="anMetrics"></table>
+          <div class="muted small" id="anMetricsNote" style="margin-top:.5rem"></div>
+          <details style="margin-top:.6rem"><summary class="small" style="cursor:pointer">Métricas por vaga</summary><div class="table-wrap" id="anPerRegion"></div></details>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ================= MODAL: EDITOR DE VAGAS ================= -->
+<div class="modal" id="roiModal" role="dialog" aria-modal="true">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h2 id="roiTitle">Vagas</h2>
+      <button class="close-x" data-close="roiModal" aria-label="Fechar">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="editor-tools">
+        <div class="time">
+          <span class="label" style="margin:0">Quadro do vídeo</span>
+          <input type="range" id="roiTime" min="0" max="1" step="0.1" value="0">
+          <span class="mono" id="roiTimeText">00:00</span>
+        </div>
+        <div class="btn-row">
+          <label class="label" for="roiProjection" style="margin:0">Câmera</label>
+          <select id="roiProjection" class="input" style="width:auto">
+            <option value="perspective">Convencional</option>
+            <option value="equirectangular">360° equirretangular</option>
+            <option value="fisheye">360° olho de peixe</option>
+            <option value="cylindrical">Panorâmica cilíndrica</option>
+          </select>
+          <input id="roiFov" class="input hidden" type="number" min="60" max="360" step="1" style="width:90px" title="Campo de visão (graus)">
+          <label class="check"><input type="checkbox" id="roiStabilize"> Câmera se move (estabilizar)</label>
+        </div>
+      </div>
+      <div class="editor-grid">
+        <div>
+          <div class="stage tall" id="roiStage"><img id="roiImage" alt=""><canvas id="roiCanvas" class="drawing"></canvas><div class="stage-msg hidden" id="roiStageMsg">Carregando quadro...</div></div>
+          <div class="muted small" id="roiHint" style="margin-top:.4rem"></div>
+        </div>
+        <div>
+          <div class="card-title"><h2 style="font-size:.95rem">Vagas (<span id="roiCount">0</span>)</h2><button id="roiClearAll" class="btn btn-danger btn-sm">Apagar todas</button></div>
+          <div class="vaga-list" id="roiList"></div>
+          <div class="btn-row" style="margin:.6rem 0">
+            <button id="roiClose" class="btn btn-dark btn-sm">Fechar vaga <span class="kbd">Enter</span></button>
+            <button id="roiUndo" class="btn btn-sm">Desfazer ponto <span class="kbd">⌫</span></button>
+          </div>
+          <ul class="help-list">
+            <li>Clique nos cantos da vaga, um de cada vez.</li>
+            <li>Para fechar: clique no primeiro ponto, dê duplo clique ou aperte <b>Enter</b>.</li>
+            <li>Arraste os pontos para ajustar uma vaga já desenhada.</li>
+            <li><b>Esc</b> cancela a vaga em desenho. Clique no nome para renomear.</li>
+            <li>Use a barra “Quadro do vídeo” para escolher um momento em que as faixas apareçam bem.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span class="muted small" id="roiFootInfo"></span>
+      <div class="btn-row">
+        <button class="btn" data-close="roiModal">Cancelar</button>
+        <button id="roiSave" class="btn btn-primary">Salvar vagas</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL: HISTÓRICO ================= -->
+<div class="modal" id="historyModal" role="dialog" aria-modal="true">
+  <div class="modal-box narrow">
+    <div class="modal-head">
+      <h2>Histórico de testes</h2>
+      <button class="close-x" data-close="historyModal" aria-label="Fechar">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="table-wrap" id="historyTable"><div class="empty">Carregando...</div></div>
+    </div>
+    <div class="modal-foot">
+      <label class="check"><input type="checkbox" id="histAllowIncomplete"> Permitir testes com anotação incompleta</label>
+      <div class="btn-row">
+        <span class="muted small" id="histSelInfo">Marque os testes que vão para o TCC, na ordem dos vídeos.</span>
+        <button id="btnReport" class="btn btn-primary" disabled>Gerar tabelas e figuras do TCC (.zip)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="{{ url_for('static', filename='js/experimentos.js') }}"></script>
 </body>
-
 </html>
