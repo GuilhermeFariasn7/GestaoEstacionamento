@@ -120,8 +120,17 @@
           </div>
         </div>
         <div class="field">
+          <label for="runMode">Modo de execução</label>
+          <select id="runMode" class="input">
+            <option value="prototipo" selected>Idêntico ao protótipo (recomendado)</option>
+            <option value="rapido">Rápido (YOLO só nas amostras)</option>
+          </select>
+          <div class="hint" id="runModeHint"></div>
+        </div>
+        <div class="field">
           <label for="runConfidence">Confiança mínima do YOLO: <span id="runConfidenceValue">0,40</span></label>
           <input id="runConfidence" type="range" min="0.1" max="0.9" step="0.05" value="0.4">
+          <div class="hint" id="runConfidenceHint"></div>
         </div>
         <div class="field">
           <label for="runCriterion">Critério de ocupação</label>
@@ -140,8 +149,6 @@
               <option value="false">Forçar desligada</option>
             </select>
           </div>
-          <label class="check"><input type="checkbox" id="runTracking"> Usar rastreamento (ByteTrack)</label>
-          <div class="hint muted small">Deixe desligado: com amostras espaçadas, o rastreador atrasa a detecção de carros que acabaram de chegar.</div>
         </details>
       </div>
       <div class="card">
@@ -213,12 +220,28 @@
       <div>
         <div class="card">
           <div class="card-title"><h2>Gabarito desta amostra</h2></div>
-          <label class="check"><input type="checkbox" id="anShowYolo"> Mostrar o que o YOLO previu</label>
+          <label class="check"><input type="checkbox" id="anShowYolo"> Mostrar o que o YOLO e o Gemini previram</label>
           <label class="check" style="margin-top:.3rem"><input type="checkbox" id="anCarry" checked> Pré-preencher com a amostra anterior</label>
           <div class="alert alert-warn hidden" id="anPrefill" style="margin:.6rem 0 0">Pré-preenchida com a amostra anterior. Confira as vagas na imagem e corrija o que mudou.</div>
           <div class="regions-list" id="anRegions"></div>
           <button id="anSaveNext" class="btn btn-primary btn-block btn-lg">Salvar e próxima <span class="kbd" style="margin-left:.3rem">Enter</span></button>
           <div class="muted small" id="anSaveStatus" style="margin-top:.4rem;min-height:1.2em"></div>
+        </div>
+
+        <div class="card" id="gemCard">
+          <div class="card-title"><h2>Gemini</h2><button id="gemNew" class="btn btn-dark btn-sm">Rodar Gemini nestas amostras</button></div>
+          <div id="gemStatus" class="muted small">Nenhuma execução ainda. O Gemini analisa as mesmas amostras e é comparado com o mesmo gabarito.</div>
+          <div id="gemProgressWrap" class="hidden" style="margin-top:.5rem">
+            <div class="progress"><div id="gemBar"></div></div>
+            <div class="btn-row" style="justify-content:space-between;margin-top:.4rem">
+              <span class="muted small" id="gemProgressText"></span>
+              <button id="gemCancel" class="btn btn-danger btn-sm">Cancelar</button>
+            </div>
+          </div>
+          <div class="field hidden" id="gemRunField" style="margin:.6rem 0 0">
+            <label for="gemRunSelect">Execução usada na comparação</label>
+            <select id="gemRunSelect" class="input"></select>
+          </div>
         </div>
 
         <div class="card">
@@ -250,7 +273,7 @@
         <div class="btn-row">
           <label class="label" for="roiProjection" style="margin:0">Câmera</label>
           <select id="roiProjection" class="input" style="width:auto">
-            <option value="perspective">Convencional</option>
+            <option value="perspective">Convencional (CFTV, celular, vídeo gravado)</option>
             <option value="equirectangular">360° equirretangular</option>
             <option value="fisheye">360° olho de peixe</option>
             <option value="cylindrical">Panorâmica cilíndrica</option>
@@ -259,6 +282,26 @@
           <label class="check"><input type="checkbox" id="roiStabilize"> Câmera se move (estabilizar)</label>
         </div>
       </div>
+      <details class="advanced" style="margin:0 0 .7rem">
+        <summary>Configuração do detector e ajustes finos da estabilização (valem para o protótipo e para os testes)</summary>
+        <div class="row-2" style="grid-template-columns:repeat(3,1fr)">
+          <div class="field">
+            <label for="roiConfidence">Confiança mínima do YOLO</label>
+            <input id="roiConfidence" class="input" type="number" min="0.05" max="0.95" step="0.05" value="0.4">
+            <div class="hint">Padrão do ambiente; o monitoramento ao vivo usa este valor.</div>
+          </div>
+          <div class="field">
+            <label for="roiMaskBottom">Ignorar faixa inferior da imagem (%)</label>
+            <input id="roiMaskBottom" class="input" type="number" min="0" max="60" step="1" placeholder="padrão">
+            <div class="hint">Parte de baixo que não serve de referência para estimar o movimento (ex.: tripé na 360°). Vazio = padrão (12% nas 360°).</div>
+          </div>
+          <div class="field">
+            <label for="roiSmoothing">Suavização do movimento (0 a 0,95)</label>
+            <input id="roiSmoothing" class="input" type="number" min="0" max="0.95" step="0.05" placeholder="0,5 (padrão)">
+            <div class="hint">Maior = vagas tremem menos, mas acompanham a câmera mais devagar.</div>
+          </div>
+        </div>
+      </details>
       <div class="editor-grid">
         <div>
           <div class="stage tall" id="roiStage"><img id="roiImage" alt=""><canvas id="roiCanvas" class="drawing"></canvas><div class="stage-msg hidden" id="roiStageMsg">Carregando quadro...</div></div>
@@ -306,6 +349,67 @@
       <div class="btn-row">
         <span class="muted small" id="histSelInfo">Marque os testes que vão para o TCC, na ordem dos vídeos.</span>
         <button id="btnReport" class="btn btn-primary" disabled>Gerar tabelas e figuras do TCC (.zip)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL: GEMINI ================= -->
+<div class="modal" id="gemModal" role="dialog" aria-modal="true">
+  <div class="modal-box narrow">
+    <div class="modal-head">
+      <h2>Rodar o Gemini nas amostras deste teste</h2>
+      <button class="close-x" data-close="gemModal" aria-label="Fechar">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-info">Cada amostra é enviada à API do Gemini com as vagas desenhadas e nomeadas na imagem
+        (as mesmas posições usadas pelo YOLO). O tempo medido inclui a ida e a volta pela internet. As imagens enviadas ficam salvas
+        na pasta do teste, para o apêndice do TCC.</div>
+      <div class="row-2">
+        <div class="field">
+          <label for="gemKey">Chave da API (Google AI Studio)</label>
+          <input id="gemKey" class="input" type="password" autocomplete="off" placeholder="cole a chave aqui">
+          <label class="check" style="margin-top:.35rem"><input type="checkbox" id="gemRemember"> Lembrar neste navegador</label>
+          <div class="hint" id="gemKeyHint">A chave não é gravada em nenhum arquivo do projeto.</div>
+        </div>
+        <div class="field">
+          <label for="gemModel">Modelo</label>
+          <div class="btn-row" style="flex-wrap:nowrap">
+            <select id="gemModel" class="input"><option value="">— carregue a lista —</option></select>
+            <button id="gemLoadModels" class="btn btn-sm">Carregar</button>
+          </div>
+          <div class="hint" id="gemModelHint">A lista vem da sua conta. Prefira um modelo estável (sem “preview”) e anote o nome exato no TCC.</div>
+        </div>
+      </div>
+      <div class="row-2" style="grid-template-columns:repeat(3,1fr)">
+        <div class="field">
+          <label for="gemTemperature">Temperatura</label>
+          <input id="gemTemperature" class="input" type="number" min="0" max="2" step="0.1" placeholder="padrão do modelo">
+          <div class="hint">Vazio = padrão do modelo (recomendação do Google para a família Gemini 3).</div>
+        </div>
+        <div class="field">
+          <label for="gemMaxWidth">Largura máxima da imagem (px)</label>
+          <input id="gemMaxWidth" class="input" type="number" min="480" max="4096" step="10" value="1600">
+        </div>
+        <div class="field">
+          <label for="gemPause">Pausa entre requisições (s)</label>
+          <input id="gemPause" class="input" type="number" min="0" max="60" step="0.5" value="0">
+          <div class="hint">Use 4–6 s se a sua cota gratuita reclamar de limite (erro 429). Há nova tentativa automática.</div>
+        </div>
+      </div>
+      <div class="field">
+        <label for="gemPrompt">Prompt (instrução enviada com cada imagem)</label>
+        <textarea id="gemPrompt" class="input" rows="7" style="resize:vertical;font-family:inherit"></textarea>
+        <div class="hint"><b>{vagas}</b> é trocado pelos nomes das vagas visíveis. O texto exato fica salvo junto com os resultados.
+          <a href="#" id="gemResetPrompt">Restaurar o padrão</a></div>
+      </div>
+      <div class="estimate" id="gemEstimate"></div>
+    </div>
+    <div class="modal-foot">
+      <span></span>
+      <div class="btn-row">
+        <button class="btn" data-close="gemModal">Cancelar</button>
+        <button id="gemStart" class="btn btn-primary">Iniciar</button>
       </div>
     </div>
   </div>

@@ -23,7 +23,7 @@ import cv2
 
 import regions_store as store
 import evaluation_capture
-from roi_stabilizer import build_stabilizer_for_environment
+import pipeline
 
 # RegionCounterLive (e o ultralytics/YOLO que ela carrega) é importado
 # sob demanda, dentro da função que efetivamente inicia o monitoramento
@@ -40,7 +40,7 @@ _CAM_BACKEND = cv2.CAP_DSHOW if sys.platform == "win32" else cv2.CAP_ANY
 
 # Mesmos valores usados no programV3_live_example.py.
 # Ajuste aqui se quiser mudar a fluidez/uso de CPU-GPU globalmente.
-DETECT_EVERY_N_FRAMES = 3
+DETECT_EVERY_N_FRAMES = pipeline.DETECT_EVERY_N_FRAMES  # definido em pipeline.py
 SAVE_JSON_EVERY_N_DETECTIONS = 5
 
 
@@ -69,20 +69,6 @@ def _open_source(source):
         return cv2.VideoCapture(int(source), _CAM_BACKEND)
 
     return cv2.VideoCapture(source)
-
-
-def _build_stabilizer(environment_name, coordinates):
-    """
-    Monta o estabilizador de vagas para o ambiente, se ele tiver sido
-    configurado para isso (ver roi_stabilizer.build_stabilizer_for_environment).
-    Ambientes sem estabilização continuam com a vaga fixa em pixel.
-    """
-
-    return build_stabilizer_for_environment(
-        environment_name,
-        coordinates,
-        log=lambda message: print(f"[MONITOR] {message}")
-    )
 
 
 def _save_region_status(data):
@@ -125,29 +111,15 @@ def _run(environment_name, stop_event):
         capture.release()
         return
 
-    stabilizer = _build_stabilizer(environment_name, coordinates)
-
-    detection_config = store.get_detection_config(environment_name)
-
-    try:
-        confidence = float(detection_config.get("confidence", 0.4))
-    except (TypeError, ValueError):
-        confidence = 0.4
-
-    from regionCounterLive import RegionCounterLive
-
     # Ajuste do tamanho da janela de visualização do YOLO.
     # Permite redimensionar a janela sem alterar a resolução de inferência.
     cv2.namedWindow("Ultralytics Solutions", cv2.WINDOW_NORMAL)
     cv2.resizeWindow("Ultralytics Solutions", 800, 400)
 
-    live_counter = RegionCounterLive(
-        show=True,
-        region=coordinates,
-        model="yolo12x.pt",
-        classes=[2],
-        conf=confidence,
-        stabilizer=stabilizer
+    # Mesmo detector dos testes do TCC (pipeline.py).
+    live_counter, _stabilizer = pipeline.build_counter(
+        environment_name, coordinates, show=True,
+        log=lambda message: print(f"[MONITOR] {message}")
     )
 
     print(f"[MONITOR] Monitoramento iniciado: {environment_name}")
@@ -168,7 +140,7 @@ def _run(environment_name, stop_event):
 
             frame_counter += 1
 
-            if frame_counter % DETECT_EVERY_N_FRAMES == 0:
+            if pipeline.is_detection_frame(frame_counter):
 
                 inference_started = __import__("time").perf_counter()
                 results = live_counter.process(frame)

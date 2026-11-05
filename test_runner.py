@@ -38,7 +38,18 @@ _FIXED_COLUMNS = {
 # Linhas = real, colunas = previsto. Usado como referência nas métricas.
 ROCHA_2025 = {"tp": 16141, "fn": 2330, "fp": 0, "tn": 3561}
 
-MODEL_NAME = "yolo12x.pt"
+import pipeline
+
+MODEL_NAME = pipeline.MODEL_PATH
+
+# Modos de execução dos testes.
+#   prototipo: idêntico ao monitoramento ao vivo -- YOLO com rastreamento
+#              a cada pipeline.DETECT_EVERY_N_FRAMES quadros e estabilização
+#              contínua. A amostra registra a decisão do primeiro quadro
+#              processado no instante da amostra (no máximo N-1 quadros depois).
+#   rapido:    YOLO (sem rastreamento) só nas amostras; o estabilizador
+#              continua recebendo quadros no mesmo ritmo do protótipo.
+EXECUTION_MODES = ("prototipo", "rapido")
 ROIS_FILE = "rois.jsonl"
 IGNORE_VALUE = "ignorar"
 _THUMBNAIL_MAX_WIDTH = 1200
@@ -84,15 +95,6 @@ def _open_source(source):
     if str(source).isdigit():
         return cv2.VideoCapture(int(source))
     return cv2.VideoCapture(source)
-
-
-def _build_stabilizer(environment_name, coordinates, enabled=None):
-    return build_stabilizer_for_environment(
-        environment_name,
-        coordinates,
-        enabled=enabled,
-        log=lambda message: print(f"[TESTE] {message}")
-    )
 
 
 def _thumbnail_scale(frame):
@@ -267,7 +269,8 @@ def _read_status_file(job_dir):
 
 
 def _run_job(job_id, environment_name, confidence, frame_step, source_override, stabilize,
-             interval_s=None, criterion="sobreposicao", tracking=False, extra=None):
+             interval_s=None, criterion="sobreposicao", tracking=False, extra=None,
+             mode="prototipo"):
     with _jobs_lock:
         job = _jobs[job_id]
 
@@ -307,18 +310,20 @@ def _run_job(job_id, environment_name, confidence, frame_step, source_override, 
                 "Não foi possível ler o FPS do vídeo; use a amostragem por quadros."
             )
         is_sample, step_frames = _sample_targets(total_frames, video_fps, interval_s, frame_step)
-        stabilizer = _build_stabilizer(environment_name, coordinates, stabilize)
+        if mode not in EXECUTION_MODES:
+            raise RuntimeError(f"Modo de execução inválido: {mode}")
+        if confidence is None:
+            confidence = pipeline.environment_confidence(environment_name)
+        # No modo protótipo o rastreamento é sempre o do monitoramento ao vivo.
+        tracking = True if mode == "prototipo" else bool(tracking)
 
-        from regionCounterLive import RegionCounterLive
-
-        counter = RegionCounterLive(
-            region=coordinates,
-            model=MODEL_NAME,
-            classes=[2],
-            conf=confidence,
-            stabilizer=stabilizer,
+        counter, stabilizer = pipeline.build_counter(
+            environment_name, coordinates,
+            confidence=confidence,
+            stabilize=stabilize,
             criterion=criterion,
-            use_tracking=tracking
+            use_tracking=tracking,
+            log=lambda message: print(f"[TESTE] {message}")
         )
 
         os.makedirs(samples_dir, exist_ok=True)
@@ -344,6 +349,8 @@ def _run_job(job_id, environment_name, confidence, frame_step, source_override, 
                 if criterion == "sobreposicao" else None
             ),
             "tracking": bool(tracking),
+            "execution_mode": mode,
+            "detect_every_n_frames": pipeline.DETECT_EVERY_N_FRAMES,
             "video_fps": round(float(video_fps), 3) if video_fps else None,
             "total_frames": total_frames,
             "duration_s": round(total_frames / video_fps, 2) if video_fps and total_frames else None,
@@ -368,32 +375,63 @@ def _run_job(job_id, environment_name, confidence, frame_step, source_override, 
         total_times = []
         inference_times = []
 
+        pending_sample = False
+        yolo_runs = 0
+        stabilizer_only_updates = 0
+
         while True:
             if job.get("cancel"):
                 raise RuntimeError("Teste cancelado pelo usuário.")
 
-            # grab() avança sem converter o quadro; só as amostras são
-            # decodificadas por completo (retrieve), o que acelera vídeos longos.
+            # grab() avança sem converter o quadro; só os quadros que serão
+            # usados são decodificados por completo (retrieve).
             if not capture.grab():
                 break
 
-            if is_sample(frame_index, sample_index):
-                success, frame = capture.retrieve()
-                if not success or frame is None:
-                    frame_index += 1
-                    continue
+            frame_number = frame_index + 1  # 1 no primeiro quadro, como no protótipo
+            if not pending_sample and is_sample(frame_index, sample_index):
+                pending_sample = True
 
-                # Mantém a amostra original para o gabarito manual.
-                # A rotina de detecção pode desenhar informações sobre o frame.
-                sample_frame = frame.copy()
-                started = time.perf_counter()
-                results = counter.process(frame)
-                total_ms = (time.perf_counter() - started) * 1000.0
-                inference_ms = counter.last_speed.get("inference")
-                total_times.append(total_ms)
-                if inference_ms is not None:
-                    inference_times.append(float(inference_ms))
+            detection_frame = pipeline.is_detection_frame(frame_number)
+            if mode == "prototipo":
+                run_yolo = detection_frame
+            else:
+                run_yolo = pending_sample
+            update_stabilizer_only = (
+                not run_yolo and detection_frame and stabilizer is not None
+            )
 
+            if not run_yolo and not update_stabilizer_only:
+                frame_index += 1
+                continue
+
+            success, frame = capture.retrieve()
+            if not success or frame is None:
+                frame_index += 1
+                continue
+
+            if update_stabilizer_only:
+                # Mantém o estabilizador no mesmo ritmo do protótipo
+                # (a suavização dele depende de receber quadros seguidos).
+                stabilizer.update(frame)
+                stabilizer_only_updates += 1
+                frame_index += 1
+                continue
+
+            # Mantém a amostra original para o gabarito manual.
+            # A rotina de detecção pode desenhar informações sobre o frame.
+            sample_frame = frame.copy() if pending_sample else None
+            started = time.perf_counter()
+            results = counter.process(frame)
+            total_ms = (time.perf_counter() - started) * 1000.0
+            yolo_runs += 1
+            inference_ms = counter.last_speed.get("inference")
+            total_times.append(total_ms)
+            if inference_ms is not None:
+                inference_times.append(float(inference_ms))
+
+            if pending_sample:
+                pending_sample = False
                 timestamp_s = frame_index / video_fps if video_fps else None
                 image_name = f"{sample_index:06d}.jpg"
                 thumb_scale = _save_thumbnail(sample_frame, os.path.join(samples_dir, image_name))
@@ -449,10 +487,10 @@ def _run_job(job_id, environment_name, confidence, frame_step, source_override, 
                 rows.append(row)
                 sample_index += 1
 
-                with _jobs_lock:
-                    if total_frames:
-                        job["progress"] = min(99, int(frame_index / total_frames * 100))
-                    job["rows"] = sample_index
+            with _jobs_lock:
+                if total_frames:
+                    job["progress"] = min(99, int(frame_index / total_frames * 100))
+                job["rows"] = sample_index
 
             frame_index += 1
 
@@ -464,6 +502,8 @@ def _run_job(job_id, environment_name, confidence, frame_step, source_override, 
         metadata["thumbnail_scale"] = thumb_scale
         metadata["frames_lidos"] = frame_index
         metadata["amostras"] = len(rows)
+        metadata["execucoes_yolo"] = yolo_runs
+        metadata["atualizacoes_so_estabilizador"] = stabilizer_only_updates
         metadata["tempo_por_quadro_ms"] = _time_stats(total_times)
         metadata["tempo_inferencia_ms"] = _time_stats(inference_times)
         _write_metadata(job_dir, metadata)
@@ -518,8 +558,8 @@ def _time_stats(values):
     }
 
 
-def start(environment_name, confidence=0.4, frame_step=5, source_override=None, stabilize=None,
-          interval_s=None, criterion="sobreposicao", tracking=False, extra=None):
+def start(environment_name, confidence=None, frame_step=5, source_override=None, stabilize=None,
+          interval_s=None, criterion="sobreposicao", tracking=False, extra=None, mode="prototipo"):
     job_id = uuid.uuid4().hex[:12]
     os.makedirs(RESULTS_DIR, exist_ok=True)
     job_dir = os.path.join(RESULTS_DIR, f"{environment_name}_{job_id}")
@@ -551,7 +591,7 @@ def start(environment_name, confidence=0.4, frame_step=5, source_override=None, 
     thread = threading.Thread(
         target=_run_job,
         args=(job_id, environment_name, confidence, max(1, int(frame_step or 1)), source_override, stabilize,
-              interval_s, criterion, tracking, extra),
+              interval_s, criterion, tracking, extra, mode),
         daemon=True
     )
     thread.start()

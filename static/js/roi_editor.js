@@ -642,7 +642,12 @@ function readDetectionConfigFromInputs() {
     if (projection === "fisheye" || projection === "cylindrical") {
         const value = els.fovInput ? parseFloat(els.fovInput.value) : NaN;
         fov = Number.isFinite(value)
-            ? Math.min(360, Math.max(60, value))
+            ? Math.min(
+                /* Olho de peixe real cobre no máx. ~220°; 360° só existe na
+                 * projeção equirretangular. */
+                projection === "fisheye" ? 220 : 360,
+                Math.max(projection === "fisheye" ? 60 : 30, value)
+            )
             : DEFAULT_FOV[projection];
     }
 

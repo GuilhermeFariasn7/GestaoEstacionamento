@@ -301,6 +301,62 @@ def gerar(ids, rotulos=None, cameras=None, permitir_incompleto=False, log=print)
         })
     write_csv(os.path.join(out_dir, "tabela8_comparacao_rocha.csv"), table8)
 
+    # ---- Gemini: Tabelas 3 e 7 (só testes com execução concluída) ----
+    import gemini_runner
+    gem_total = {"tp": 0, "fp": 0, "tn": 0, "fn": 0}
+    yolo_same = {"tp": 0, "fp": 0, "tn": 0, "fn": 0}
+    gem_latencies, yolo_times, table3, table7 = [], [], [], []
+    for t in tests:
+        run_id = gemini_runner.latest_completed_run(t["id"])
+        if not run_id:
+            continue
+        gm = gemini_runner.compute_metrics(t["id"], run_id)
+        gmeta = gemini_runner.get_metadata(t["id"], run_id) or {}
+        for key in gem_total:
+            gem_total[key] += gm["gemini"][key]
+            yolo_same[key] += gm["yolo_same_cells"][key]
+        lat = (gm.get("gemini_latency_ms") or {}).get("media")
+        ytime = (gm.get("yolo_time_ms") or {}).get("media")
+        if lat is not None:
+            gem_latencies.append((lat, gm["gemini"]["total"]))
+        if ytime is not None:
+            yolo_times.append((ytime, gm["yolo_same_cells"]["total"]))
+        for label, m, tempo in (("YOLO", gm["yolo_same_cells"], ytime), ("Gemini", gm["gemini"], lat)):
+            table7.append({
+                "Vídeo": t["label"], "Abordagem": label, "Observações": m["total"],
+                "TP": m["tp"], "TN": m["tn"], "FP": m["fp"], "FN": m["fn"],
+                "Acurácia": pct(m["accuracy"]), "Precisão": pct(m["precision"]),
+                "Recall": pct(m["recall"]), "FPR": pct(m["false_positive_rate"]),
+                "Tempo/quadro (s)": num(tempo / 1000.0, 3) if tempo is not None else "N/D",
+            })
+        table3.append({
+            "Vídeo": t["label"], "Execução": run_id, "Modelo": gmeta.get("model"),
+            "Modo de utilização": gmeta.get("mode"), "Método de acesso": gmeta.get("access"),
+            "Temperatura": "padrão do modelo" if gmeta.get("temperature") is None else num(gmeta.get("temperature"), 2),
+            "Largura máx. da imagem (px)": gmeta.get("max_width"),
+            "Formato de resposta": gmeta.get("response_format"),
+            "Sem resposta (observações)": gm["no_answer_cells"],
+            "Prompt": gmeta.get("prompt_template"),
+        })
+
+    def weighted(values):
+        total = sum(n for _, n in values)
+        return sum(v * n for v, n in values) / total if total else None
+
+    if table7:
+        gem_all = test_runner._derive_metrics(gem_total)
+        yolo_all = test_runner._derive_metrics(yolo_same)
+        for label, m, tempo in (("YOLO", yolo_all, weighted(yolo_times)), ("Gemini", gem_all, weighted(gem_latencies))):
+            table7.append({
+                "Vídeo": "Consolidado", "Abordagem": label, "Observações": m["total"],
+                "TP": m["tp"], "TN": m["tn"], "FP": m["fp"], "FN": m["fn"],
+                "Acurácia": pct(m["accuracy"]), "Precisão": pct(m["precision"]),
+                "Recall": pct(m["recall"]), "FPR": pct(m["false_positive_rate"]),
+                "Tempo/quadro (s)": num(tempo / 1000.0, 3) if tempo is not None else "N/D",
+            })
+        write_csv(os.path.join(out_dir, "tabela7_yolo_vs_gemini.csv"), table7)
+        write_csv(os.path.join(out_dir, "tabela3_config_gemini.csv"), table3)
+
     # ---- figuras ----
     figures = []
     for t in tests:
@@ -352,6 +408,21 @@ def gerar(ids, rotulos=None, cameras=None, permitir_incompleto=False, log=print)
             ["Trabalho", "Acurácia", "Precisão", "Recall", "FPR", "Precisão (livre)"],
             [[r["Trabalho"], r["Acurácia"], r["Precisão"], r["Recall"], r["FPR"], r["Precisão (livre+)"]]
              for r in table8], "lccccc")
+    if table7:
+        consolidated = [r for r in table7 if r["Vídeo"] == "Consolidado"]
+        tabular("Comparação entre YOLO e Gemini (mesmas observações)", "tab:yolo-gemini",
+                ["Abordagem", "Acurácia", "Precisão", "Recall", "FPR", "Tempo/quadro"],
+                [[r["Abordagem"], r["Acurácia"], r["Precisão"], r["Recall"], r["FPR"],
+                  r["Tempo/quadro (s)"] + (" s" if r["Tempo/quadro (s)"] != "N/D" else "")] for r in consolidated],
+                "lccccc")
+        first = table3[0]
+        tabular("Configuração utilizada para os testes com Gemini", "tab:config-gemini",
+                ["Parâmetro", "Configuração"],
+                [["Modelo", first["Modelo"]], ["Modo de utilização", "Zero-shot"],
+                 ["Prompt", "ver Apêndice (texto integral em tabela3_config_gemini.csv)"],
+                 ["Temperatura", first["Temperatura"]], ["Método de acesso", "API (REST, generateContent)"],
+                 ["Formato de resposta", "JSON estruturado (vaga, ocupada)"]], "ll")
+
     with open(os.path.join(out_dir, "tabelas_tcc.tex"), "w", encoding="utf-8") as file:
         file.write("% Gerado por gerar_resultados_tcc.py em " + stamp + "\n")
         file.write("% Requer \\usepackage{graphicx} (resizebox). \\legend é do abnTeX2.\n\n")

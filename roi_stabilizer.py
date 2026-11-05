@@ -74,6 +74,7 @@ from camera_models import (
     build_camera_model,
     normalize_projection,
     ransac_rotation,
+    regions_outside_lens,
     rotation_angle_degrees,
 )
 
@@ -378,8 +379,21 @@ class RegionStabilizer:
             )
             return warped.reshape(-1, 2)
 
+        points = np.asarray(points, dtype=np.float64).reshape(-1, 2)
         rays = self.model.pixel_to_ray(points)
-        return self.model.ray_to_pixel(rays @ transform.T)
+
+        # Somamos só o DESLOCAMENTO causado pela rotação, em vez de usar a
+        # posição reprojetada diretamente. Assim, com a câmera parada
+        # (rotação identidade) cada ponto fica exatamente onde foi
+        # desenhado, mesmo que ele caia fora da área útil do modelo (ex.:
+        # canto de um vídeo 16:9 fora do círculo de um olho de peixe) --
+        # nesse caso o ida-e-volta pixel->raio->pixel não devolve o mesmo
+        # ponto e as vagas apareciam "retorcidas" mesmo sem movimento.
+        base = self.model.ray_to_pixel(rays)
+        moved = self.model.ray_to_pixel(rays @ transform.T)
+        delta = moved - base
+        delta[:, 0] = self._wrap_dx(delta[:, 0])
+        return points + delta
 
     def _wrap_dx(self, dx):
         if not self.wraps:
@@ -619,13 +633,33 @@ def build_stabilizer_for_environment(environment_name, coordinates, enabled=None
         except (TypeError, ValueError):
             return None
 
+    projection = config.get("projection", PROJECTION_PERSPECTIVE)
+    fov = _number("fov")
+
+    # Proteção contra configuração incoerente: vagas desenhadas fora do
+    # círculo da lente significam que a imagem não é um olho de peixe
+    # com esse FOV (ex.: vídeo 16:9 comum marcado como "olho de peixe
+    # 360°"). Usar o modelo esférico aqui deforma todas as vagas.
+    ref_h, ref_w = reference_frame.shape[:2]
+    outside = regions_outside_lens(projection, ref_w, ref_h, fov, coordinates)
+    if outside:
+        log(
+            f"[ESTABILIZAÇÃO] ATENÇÃO: em '{environment_name}' as vagas "
+            f"{', '.join(sorted(outside))} estão fora do círculo da lente "
+            f"'{normalize_projection(projection)}' (FOV {fov}). A projeção "
+            "foi ignorada e o modelo convencional (homografia) será usado. "
+            "Corrija o tipo de câmera no editor de vagas."
+        )
+        projection = PROJECTION_PERSPECTIVE
+        fov = None
+
     smoothing = _number("smoothing")
 
     stabilizer = RegionStabilizer(
         reference_frame,
         coordinates,
-        projection=config.get("projection", PROJECTION_PERSPECTIVE),
-        fov=_number("fov"),
+        projection=projection,
+        fov=fov,
         mask_bottom=_number("mask_bottom"),
         smoothing=SMOOTHING if smoothing is None else smoothing,
     )

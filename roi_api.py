@@ -38,6 +38,11 @@ from flask_cors import CORS
 
 import regions_store as store
 import test_runner
+from camera_models import (
+    clamp_fov,
+    normalize_projection,
+    regions_outside_lens,
+)
 
 
 app = Flask(__name__)
@@ -211,6 +216,11 @@ def save_environment(name):
         return jsonify({
             "error": "Formato de regiões inválido."
         }), 400
+
+    detection = regions.get("__detection__")
+    if isinstance(detection, dict):
+        detection["projection"] = normalize_projection(detection.get("projection"))
+        detection["fov"] = clamp_fov(detection["projection"], detection.get("fov"))
 
     try:
 
@@ -508,10 +518,17 @@ def create_test():
         }), 404
 
     try:
-        confidence = float(body.get("confidence", 0.4))
+        confidence = body.get("confidence")
+        # Sem confiança informada: usa a do ambiente (a mesma do protótipo).
+        confidence = None if confidence in (None, "") else float(confidence)
     except (TypeError, ValueError):
         confidence = 0.4
-    confidence = max(0.01, min(1.0, confidence))
+    if confidence is not None:
+        confidence = max(0.01, min(1.0, confidence))
+
+    mode = str(body.get("mode", "prototipo")).strip().lower() or "prototipo"
+    if mode not in test_runner.EXECUTION_MODES:
+        return jsonify({"error": "Modo de execução inválido."}), 400
 
     try:
         frame_step = int(body.get("frame_step", 5))
@@ -585,6 +602,7 @@ def create_test():
         interval_s=interval_s,
         criterion=criterion,
         tracking=bool(tracking),
+        mode=mode,
         extra={
             "label": str(body.get("label") or "").strip() or None,
             "speed_factor": speed_factor,
@@ -942,12 +960,35 @@ def save_test_environment(name):
     detection = dict((current.get("regions") or {}).get("__detection__", {}))
     detection.setdefault("confidence", 0.4)
     detection.setdefault("fps", 5)
-    for key in ("stabilize", "projection", "fov"):
+    for key in ("stabilize", "projection", "fov", "confidence", "mask_bottom", "smoothing"):
         if key in (body.get("detection") or {}):
-            detection[key] = body["detection"][key]
+            value = body["detection"][key]
+            if value is None and key in ("mask_bottom", "smoothing"):
+                detection.pop(key, None)  # volta ao padrão do estabilizador
+            else:
+                detection[key] = value
     detection.setdefault("stabilize", False)
     detection.setdefault("projection", "perspective")
     detection.setdefault("fov", None)
+
+    # Coerência da câmera: o FOV precisa ser possível para a projeção e,
+    # no olho de peixe, as vagas precisam estar dentro do círculo da lente.
+    # Sem isso a estabilização deforma as vagas mesmo com a câmera parada.
+    detection["projection"] = normalize_projection(detection.get("projection"))
+    detection["fov"] = clamp_fov(detection["projection"], detection.get("fov"))
+    if detection.get("stabilize"):
+        outside = regions_outside_lens(
+            detection["projection"], frame.shape[1], frame.shape[0],
+            detection["fov"], clean,
+        )
+        if outside:
+            return jsonify({"error": (
+                "O tipo de câmera “olho de peixe” não combina com estas vagas: "
+                f"{', '.join(sorted(outside))} estão fora do círculo da lente "
+                f"(FOV {detection['fov']:.0f}°) neste vídeo de {frame.shape[1]}×{frame.shape[0]}. "
+                "Se for uma câmera comum (CFTV, celular, vídeo gravado), escolha "
+                "“Convencional”."
+            )}), 400
     clean["__detection__"] = detection
 
     success, encoded = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
@@ -1018,6 +1059,119 @@ def test_report():
         archive, mimetype="application/zip", as_attachment=True,
         download_name=f"resultados_tcc_{os.path.basename(out_dir)}.zip"
     )
+
+
+# ------------------------------------------------------------
+# Gemini (abordagem complementar ao YOLO)
+# ------------------------------------------------------------
+
+def _gemini():
+    import gemini_runner
+    return gemini_runner
+
+
+@app.route("/api/gemini/config", methods=["GET"])
+def gemini_config():
+    g = _gemini()
+    return jsonify({
+        "default_prompt": g.DEFAULT_PROMPT,
+        "default_max_width": g.DEFAULT_MAX_WIDTH,
+        "has_env_key": bool(os.environ.get("GEMINI_API_KEY", "").strip()),
+    })
+
+
+@app.route("/api/gemini/models", methods=["POST"])
+def gemini_models():
+    g = _gemini()
+    body = request.get_json(silent=True) or {}
+    try:
+        return jsonify(g.list_models(body.get("api_key")))
+    except g.GeminiError as error:
+        return jsonify({"error": str(error)}), 400
+
+
+@app.route("/api/tests/<job_id>/gemini", methods=["GET"])
+def gemini_list_runs(job_id):
+    return jsonify(_gemini().list_runs(job_id))
+
+
+@app.route("/api/tests/<job_id>/gemini", methods=["POST"])
+def gemini_start(job_id):
+    g = _gemini()
+    body = request.get_json(silent=True) or {}
+    temperature = body.get("temperature")
+    try:
+        temperature = None if temperature in (None, "") else float(temperature)
+        run_id = g.start(
+            job_id,
+            api_key=body.get("api_key"),
+            model=str(body.get("model") or "").strip(),
+            temperature=temperature,
+            prompt_template=body.get("prompt"),
+            max_width=int(body.get("max_width") or g.DEFAULT_MAX_WIDTH),
+            pause_s=float(body.get("pause_s") or 0),
+        )
+    except (g.GeminiError, ValueError) as error:
+        return jsonify({"error": str(error)}), 400
+    return jsonify({"id": run_id})
+
+
+@app.route("/api/tests/<job_id>/gemini/<run_id>", methods=["GET"])
+def gemini_status(job_id, run_id):
+    status = _gemini().get_status(job_id, run_id)
+    if status is None:
+        return jsonify({"error": "Execução do Gemini não encontrada."}), 404
+    return jsonify(status)
+
+
+@app.route("/api/tests/<job_id>/gemini/<run_id>", methods=["DELETE"])
+def gemini_delete(job_id, run_id):
+    g = _gemini()
+    try:
+        if not g.delete(job_id, run_id):
+            return jsonify({"error": "Execução não encontrada."}), 404
+    except g.GeminiError as error:
+        return jsonify({"error": str(error)}), 409
+    return jsonify({"deleted": run_id})
+
+
+@app.route("/api/tests/<job_id>/gemini/<run_id>/cancel", methods=["POST"])
+def gemini_cancel(job_id, run_id):
+    if not _gemini().cancel(job_id, run_id):
+        return jsonify({"error": "Esta execução não está em andamento."}), 409
+    return jsonify({"cancelled": True})
+
+
+@app.route("/api/tests/<job_id>/gemini/<run_id>/metrics", methods=["GET"])
+def gemini_metrics(job_id, run_id):
+    metrics = _gemini().compute_metrics(job_id, run_id)
+    if metrics is None:
+        return jsonify({"error": "Sem previsões do Gemini para esta execução."}), 404
+    return jsonify(metrics)
+
+
+@app.route("/api/tests/<job_id>/gemini/<run_id>/predictions", methods=["GET"])
+def gemini_predictions(job_id, run_id):
+    predictions = _gemini().get_predictions(job_id, run_id)
+    if predictions is None:
+        return jsonify({"error": "Sem previsões do Gemini para esta execução."}), 404
+    return jsonify(predictions)
+
+
+@app.route("/api/tests/<job_id>/gemini/<run_id>/metadata", methods=["GET"])
+def gemini_metadata(job_id, run_id):
+    metadata = _gemini().get_metadata(job_id, run_id)
+    if metadata is None:
+        return jsonify({"error": "Execução não encontrada."}), 404
+    return jsonify(metadata)
+
+
+@app.route("/api/tests/<job_id>/gemini/<run_id>/images/<name>", methods=["GET"])
+def gemini_image(job_id, run_id, name):
+    path = _gemini().image_path(job_id, run_id, name)
+    if not path:
+        return jsonify({"error": "Imagem não encontrada."}), 404
+    return send_file(path, mimetype="image/jpeg")
 
 
 @app.route("/")

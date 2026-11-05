@@ -63,6 +63,32 @@ DEFAULT_FOV = {
     PROJECTION_CYLINDRICAL: 180.0,
 }
 
+# Uma lente olho de peixe real cobre no máximo ~220° num único círculo.
+# Valores como 360° só fazem sentido na projeção equirretangular; num
+# olho de peixe eles encolhem o círculo útil da lente (raio = metade da
+# menor dimensão da imagem / FOV) e jogam para "trás da câmera" tudo o
+# que estiver fora dele, o que distorce as vagas.
+MIN_FISHEYE_FOV = 60.0
+MAX_FISHEYE_FOV = 220.0
+MIN_CYLINDRICAL_FOV = 30.0
+MAX_CYLINDRICAL_FOV = 360.0
+
+
+def clamp_fov(projection, fov):
+    """Limita o FOV ao intervalo fisicamente possível da projeção."""
+    projection = normalize_projection(projection)
+    if projection == PROJECTION_FISHEYE:
+        low, high = MIN_FISHEYE_FOV, MAX_FISHEYE_FOV
+    elif projection == PROJECTION_CYLINDRICAL:
+        low, high = MIN_CYLINDRICAL_FOV, MAX_CYLINDRICAL_FOV
+    else:
+        return None
+    try:
+        value = float(fov) if fov not in (None, "") else DEFAULT_FOV[projection]
+    except (TypeError, ValueError):
+        value = DEFAULT_FOV[projection]
+    return min(high, max(low, value))
+
 
 def normalize_projection(value):
     """Converte o valor salvo no JSON para um dos nomes internos."""
@@ -142,7 +168,8 @@ class FisheyeModel(CameraModel):
 
     def __init__(self, width, height, fov_degrees=180.0):
         super().__init__(width, height)
-        self.fov = math.radians(float(fov_degrees or DEFAULT_FOV[self.name]))
+        fov_degrees = clamp_fov(PROJECTION_FISHEYE, fov_degrees)
+        self.fov = math.radians(float(fov_degrees))
         self.cx = self.width / 2.0
         self.cy = self.height / 2.0
         self.radius = min(self.width, self.height) / 2.0
@@ -190,7 +217,8 @@ class CylindricalModel(CameraModel):
 
     def __init__(self, width, height, fov_degrees=180.0):
         super().__init__(width, height)
-        self.hfov = math.radians(float(fov_degrees or DEFAULT_FOV[self.name]))
+        fov_degrees = clamp_fov(PROJECTION_CYLINDRICAL, fov_degrees)
+        self.hfov = math.radians(float(fov_degrees))
         self.focal = self.width / self.hfov
         self.cx = self.width / 2.0
         self.cy = self.height / 2.0
@@ -230,6 +258,30 @@ def build_camera_model(projection, width, height, fov=None):
     if projection == PROJECTION_CYLINDRICAL:
         return CylindricalModel(width, height, fov or DEFAULT_FOV[projection])
     return None
+
+
+def regions_outside_lens(projection, width, height, fov, regions, tolerance=0.02):
+    """
+    Nomes das vagas que têm pontos fora da área útil da lente.
+
+    Só o olho de peixe tem área útil circular. Se uma vaga desenhada pelo
+    operador está fora do círculo, a câmera NÃO é olho de peixe com esse
+    FOV (ex.: vídeo 16:9 comum marcado como "olho de peixe 360°").
+    """
+    model = build_camera_model(projection, width, height, fov)
+    if model is None or model.name != PROJECTION_FISHEYE:
+        return []
+
+    limit = model.radius * (1.0 + tolerance)
+    outside = []
+    for name, points in regions.items():
+        pts = np.asarray(points, dtype=np.float64).reshape(-1, 2)
+        if len(pts) == 0:
+            continue
+        distance = np.hypot(pts[:, 0] - model.cx, pts[:, 1] - model.cy)
+        if (distance > limit).any():
+            outside.append(name)
+    return outside
 
 
 # ----------------------------------------------------------------------

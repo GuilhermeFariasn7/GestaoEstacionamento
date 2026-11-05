@@ -432,6 +432,9 @@ function openEditor(name, isNew) {
     $('roiProjection').value = det.projection || 'perspective';
     $('roiFov').value = det.fov || 180;
     $('roiStabilize').checked = !!det.stabilize;
+    $('roiConfidence').value = det.confidence ?? 0.4;
+    $('roiMaskBottom').value = det.mask_bottom === undefined || det.mask_bottom === null ? '' : Math.round(det.mask_bottom * 100);
+    $('roiSmoothing').value = det.smoothing === undefined || det.smoothing === null ? '' : det.smoothing;
     updateFovVisibility();
 
     const dur = S.video.duration_s || 0;
@@ -454,10 +457,14 @@ function closeEditor(force = false) {
 function updateFovVisibility() {
     const p = $('roiProjection').value;
     $('roiFov').classList.toggle('hidden', !(p === 'fisheye' || p === 'cylindrical'));
+    // Olho de peixe real cobre no máximo ~220°; 360° só vale na equirretangular.
+    $('roiFov').max = p === 'fisheye' ? 220 : 360;
+    if (p === 'fisheye' && Number($('roiFov').value) > 220) $('roiFov').value = 180;
 }
 $('roiProjection').addEventListener('change', () => { updateFovVisibility(); E.dirty = true; });
 $('roiStabilize').addEventListener('change', () => { E.dirty = true; });
-$('roiFov').addEventListener('change', () => { E.dirty = true; });
+['roiFov', 'roiConfidence', 'roiMaskBottom', 'roiSmoothing'].forEach(id =>
+    $(id).addEventListener('change', () => { E.dirty = true; }));
 
 function loadEditorFrame() {
     const img = $('roiImage');
@@ -680,8 +687,13 @@ $('roiSave').onclick = async () => {
             regions: E.regions,
             detection: {
                 projection,
-                fov: (projection === 'fisheye' || projection === 'cylindrical') ? Number($('roiFov').value) || 180 : null,
+                fov: (projection === 'fisheye' || projection === 'cylindrical')
+                    ? Math.min(projection === 'fisheye' ? 220 : 360, Math.max(projection === 'fisheye' ? 60 : 30, Number($('roiFov').value) || 180))
+                    : null,
                 stabilize: $('roiStabilize').checked,
+                confidence: Math.min(0.95, Math.max(0.05, Number($('roiConfidence').value) || 0.4)),
+                mask_bottom: $('roiMaskBottom').value === '' ? null : Math.min(0.6, Math.max(0, Number($('roiMaskBottom').value) / 100)),
+                smoothing: $('roiSmoothing').value === '' ? null : Math.min(0.95, Math.max(0, Number($('roiSmoothing').value))),
             },
         });
         localStorage.setItem('exp:env', E.name);
@@ -713,6 +725,13 @@ function renderRunPanel() {
         $('runLabel').value = video.name.replace(/\.[^.]+$/, '');
         S.labelVideo = video.path;
     }
+    const envConf = Number((env.detection || {}).confidence ?? 0.4);
+    if (S.confEnv !== env.name) {
+        $('runConfidence').value = envConf;
+        $('runConfidenceValue').textContent = num(envConf, 2);
+        S.confEnv = env.name;
+    }
+    $('runConfidenceHint').textContent = `Valor salvo no ambiente (usado pelo protótipo): ${num(envConf, 2)}. Para comparar com o protótipo, mantenha esse valor.`;
     const cameras = { perspective: 'Convencional', equirectangular: '360° equirretangular', fisheye: '360° olho de peixe', cylindrical: 'Panorâmica cilíndrica' };
     $('runSummary').innerHTML = [
         ['Vídeo', esc(video.name)],
@@ -734,13 +753,20 @@ function updateEstimate() {
     const fileInterval = real / speed;
     const samples = video.duration_s ? sampleCount(video.duration_s, fileInterval) : null;
     const vagas = regionCount(env);
+    const yoloRuns = $('runMode').value === 'prototipo' && video.frames
+        ? Math.floor(video.frames / 3) : samples;
+    $('runModeHint').innerHTML = $('runMode').value === 'prototipo'
+        ? 'Faz exatamente o que o monitoramento ao vivo faz: YOLO com rastreamento a cada 3 quadros e estabilização contínua. A amostra guarda a decisão do sistema naquele instante. Mais lento.'
+        : 'Roda o YOLO só nas amostras (sem rastreamento). O estabilizador continua recebendo quadros no mesmo ritmo do protótipo. Bom para conferências rápidas.';
     $('runEstimate').innerHTML =
+        (yoloRuns ? `O YOLO vai rodar <b>${intBR(yoloRuns)}</b> vez(es).<br>` : '') +
         (samples ? `<b>${intBR(samples)}</b> amostras × <b>${vagas}</b> vagas = <b>${intBR(samples * vagas)}</b> observações para anotar.<br>` : '') +
         (speed !== 1 ? `Como o vídeo está ${num(speed, 1)}× mais rápido, a amostra é tirada a cada <b>${num(fileInterval, 2)} s do arquivo</b> (= ${num(real, 1)} s reais).<br>` : '') +
         `<span class="muted">Referência: Rocha (2025) teve 22.032 observações (18 vagas, 1h45min, a cada 5 s).</span>`;
 }
 
 ['runInterval', 'runSpeedOther'].forEach(id => $(id).addEventListener('input', updateEstimate));
+$('runMode').addEventListener('change', updateEstimate);
 $('runSpeed').addEventListener('change', () => {
     $('runSpeedOther').classList.toggle('hidden', $('runSpeed').value !== 'outro');
     updateEstimate();
@@ -752,7 +778,7 @@ function setRunning(running) {
     $('btnStart').textContent = running ? 'Processando...' : '▶ Iniciar teste';
     $('runStatus').classList.toggle('hidden', false);
     $('btnCancel').classList.toggle('hidden', !running);
-    ['runLabel', 'runInterval', 'runSpeed', 'runSpeedOther', 'runConfidence', 'runCriterion', 'runStabilize', 'runTracking']
+    ['runLabel', 'runInterval', 'runSpeed', 'runSpeedOther', 'runConfidence', 'runCriterion', 'runStabilize', 'runMode']
         .forEach(id => { $(id).disabled = running; });
 }
 
@@ -775,7 +801,7 @@ $('btnStart').onclick = async () => {
             frame_step: 1,
             criterion: $('runCriterion').value,
             stabilize: $('runStabilize').value,
-            tracking: $('runTracking').checked,
+            mode: $('runMode').value,
         });
         S.runningJob = data.id;
         $('runStatusText').textContent = 'Carregando o modelo YOLO...';
@@ -870,6 +896,7 @@ async function openJob(id) {
     S.job = id;
     history.replaceState(null, '', '/tests?job=' + encodeURIComponent(id));
     A.page = [];
+    resetGemini();
     A.metadata = await req(`/api/tests/${id}/metadata`).catch(() => ({}));
     renderAnalysisHead();
     await loadPageFor(0);
@@ -877,6 +904,7 @@ async function openJob(id) {
     const first = A.overview ? A.overview.complete.indexOf(0) : -1;
     await goSample(first > 0 ? first : 0, first > 0 ? await truthOf(first - 1) : null);
     refreshMetrics();
+    loadGeminiRuns();
     goStep(4);
 }
 
@@ -884,12 +912,14 @@ function renderAnalysisHead() {
     const md = A.metadata || {};
     const criteria = { sobreposicao: 'sobreposição ≥ 15%', centro: 'centro da caixa' };
     $('anTitle').textContent = md.label || `Teste ${S.job}`;
+    const modes = { prototipo: 'modo protótipo', rapido: 'modo rápido' };
     const interval = md.interval_real_s
         ? `a cada ${num(md.interval_real_s, 1)} s` + (md.speed_factor && md.speed_factor !== 1 ? ` (vídeo ${num(md.speed_factor, 1)}×)` : '')
         : (md.interval_s ? `a cada ${num(md.interval_s, 1)} s` : `a cada ${md.frame_step} quadros`);
     $('anSubtitle').textContent = [
         (md.source || '').split(/[\\/]/).pop(), md.environment, interval,
-        criteria[md.occupancy_criterion] || '', `confiança ${num(md.confidence, 2)}`,
+        criteria[md.occupancy_criterion] || '', `confiança ${num(md.confidence, 2)}`, modes[md.execution_mode] || '',
+        md.stabilize ? 'com estabilização' : '',
         md.created_at ? new Date(md.created_at * 1000).toLocaleString('pt-BR') : '',
     ].filter(Boolean).join(' · ');
     $('anDownloadData').href = `${API()}/api/tests/${S.job}/download`;
@@ -950,9 +980,11 @@ function renderSample() {
             return `<div class="region-row"><span class="rname">${esc(n)}</span><span class="badge">fora de vista</span></div>`;
         }
         const t = A.truth[n];
-        const yolo = showYolo ? `<span class="badge ${s.detections[n] === 'ocupada' ? 'badge-red' : 'badge-green'}" title="Previsão do YOLO">Y: ${s.detections[n]}</span>` : '';
+        let yolo = showYolo ? `<span class="badge ${s.detections[n] === 'ocupada' ? 'badge-red' : 'badge-green'}" title="Previsão do YOLO">Y: ${s.detections[n]}</span>` : '';
+        const g = showYolo && G.predictions ? (G.predictions[String(s.sample)] || {})[n] : null;
+        if (g) yolo += ` <span class="badge ${g === 'ocupada' ? 'badge-red' : g === 'livre' ? 'badge-green' : ''}" title="Previsão do Gemini">G: ${g === 'sem_resposta' ? '—' : g}</span>`;
         return `<div class="region-row ${t === undefined ? 'unmarked' : ''}">
-            <span class="rname">${i < 9 ? `<span class="kbd">${i + 1}</span>` : ''}${esc(n)} ${yolo}</span>
+            <span class="rname">${i < 9 ? `<span class="kbd">${i + 1}</span>` : ''}<span class="nowrap">${esc(n)}</span> ${yolo}</span>
             <span class="seg">
                 <button data-r="${esc(n)}" data-v="true" class="${t === true ? 'on-occ' : ''}">Ocupada</button>
                 <button data-r="${esc(n)}" data-v="false" class="${t === false ? 'on-free' : ''}">Livre</button>
@@ -1018,7 +1050,11 @@ function drawAnalysis() {
         });
         if (!isFinite(lx)) return;
         let label = name;
-        if (showYolo && !hidden) label += ' · Y:' + (s.detections[name] === 'ocupada' ? 'ocup.' : 'livre');
+        if (showYolo && !hidden) {
+            label += ' · Y:' + (s.detections[name] === 'ocupada' ? 'ocup.' : 'livre');
+            const g = G.predictions ? (G.predictions[String(s.sample)] || {})[name] : null;
+            if (g === 'ocupada' || g === 'livre') label += ' · G:' + (g === 'ocupada' ? 'ocup.' : 'livre');
+        }
         drawLabel(b.ctx, label, lx + 3, ly + 16, color, b);
     });
 }
@@ -1043,6 +1079,8 @@ async function save() {
         A.prefilled = false;
         $('anSaveStatus').textContent = `Amostra ${s.sample + 1} salva.`;
         updateOverviewFor(s);
+        A.lastMetrics = result.metrics;
+        if (G.runId) await refreshGeminiMetrics();
         renderMetrics(result.metrics);
         return true;
     } catch (error) {
@@ -1119,7 +1157,7 @@ $('anTimeline').addEventListener('click', e => {
 
 /* métricas */
 async function refreshMetrics() {
-    try { renderMetrics(await req(`/api/tests/${S.job}/metrics`)); }
+    try { A.lastMetrics = await req(`/api/tests/${S.job}/metrics`); renderMetrics(A.lastMetrics); }
     catch (error) { $('anMetricsNote').textContent = error.message; }
 }
 
@@ -1130,26 +1168,211 @@ function renderMetrics(m) {
         <div class="h"></div><div class="h">Previsto ocupada</div><div class="h">Previsto livre</div>
         <div class="h">Real ocupada</div><div class="ok">TP ${intBR(o.tp)}</div><div class="bad">FN ${intBR(o.fn)}</div>
         <div class="h">Real livre</div><div class="bad">FP ${intBR(o.fp)}</div><div class="ok">TN ${intBR(o.tn)}</div>`;
-    const rows = [
-        ['Acurácia', o.accuracy, r.accuracy],
-        ['Precisão', o.precision, r.precision],
-        ['Recall', o.recall, r.recall],
-        ['Taxa de falsos positivos', o.false_positive_rate, r.false_positive_rate],
-        ['F1', o.f1, r.f1],
-        ['Precisão (livre = positiva)', o.precision_livre, r.precision_livre],
+    const gm = G.metrics ? G.metrics.gemini : null;
+    const keys = [
+        ['Acurácia', 'accuracy'], ['Precisão', 'precision'], ['Recall', 'recall'],
+        ['Taxa de falsos positivos', 'false_positive_rate'], ['F1', 'f1'],
+        ['Precisão (livre = positiva)', 'precision_livre'],
     ];
-    $('anMetrics').innerHTML = '<thead><tr><th></th><th>Este teste</th><th>Rocha (2025)</th></tr></thead><tbody>' +
-        rows.map(([k, a, b]) => `<tr><td>${k}</td><td><b>${pct(a)}</b></td><td>${pct(b)}</td></tr>`).join('') + '</tbody>';
+    const ms = v => v === null || v === undefined ? '—' : num(v / 1000, 2) + ' s';
+    const yoloTime = m.tempo_por_quadro_ms ? m.tempo_por_quadro_ms.media : null;
+    $('anMetrics').innerHTML = '<thead><tr><th></th><th>YOLO</th>' + (gm ? '<th>Gemini</th>' : '') + '<th>Rocha (2025)</th></tr></thead><tbody>' +
+        keys.map(([k, key]) => `<tr><td>${k}</td><td><b>${pct(o[key])}</b></td>` + (gm ? `<td><b>${pct(gm[key])}</b></td>` : '') + `<td>${pct(r[key])}</td></tr>`).join('') +
+        `<tr><td>Tempo por quadro</td><td>${ms(yoloTime)}</td>` + (gm ? `<td>${ms((G.metrics.gemini_latency_ms || {}).media)}</td>` : '') + '<td>—</td></tr></tbody>';
     const tempo = m.tempo_por_quadro_ms ? ` Tempo médio por quadro: ${num(m.tempo_por_quadro_ms.media, 1)} ms.` : '';
     $('anMetricsNote').textContent =
         `${intBR(m.annotated_cells)} de ${intBR(m.total_cells)} observações anotadas` +
         (m.ignored_cells ? `, ${m.ignored_cells} indeterminada(s)` : '') +
         (m.out_of_view_cells ? `, ${m.out_of_view_cells} fora de vista` : '') + '.' + tempo +
-        ' Classe positiva = vaga ocupada. A precisão de 60,45% de Rocha corresponde à linha “livre = positiva”.';
+        ' Classe positiva = vaga ocupada. A precisão de 60,45% de Rocha corresponde à linha “livre = positiva”.' +
+        (G.metrics ? ` Gemini (${G.metrics.model}): respondeu ${intBR(G.metrics.gemini.total)} de ${intBR(G.metrics.annotated_cells)} observações anotadas; ` +
+            `nessas mesmas observações o YOLO teve acurácia ${pct(G.metrics.yolo_same_cells.accuracy)}. Tempo do Gemini inclui a rede.` : '');
     $('anPerRegion').innerHTML = '<table class="table"><thead><tr><th>Vaga</th><th>N</th><th>Acc.</th><th>Prec.</th><th>Rec.</th><th>FPR</th></tr></thead><tbody>' +
         Object.entries(m.per_region || {}).map(([n, v]) =>
             `<tr><td>${esc(n)}</td><td>${v.total}</td><td>${pct(v.accuracy)}</td><td>${pct(v.precision)}</td><td>${pct(v.recall)}</td><td>${pct(v.false_positive_rate)}</td></tr>`).join('') +
         '</tbody></table>';
+}
+
+/* ---------------------------------------------------------
+ * Gemini
+ * --------------------------------------------------------- */
+const G = { runs: [], runId: null, predictions: null, metrics: null, polling: null, running: null, config: null };
+
+function resetGemini() {
+    clearTimeout(G.polling);
+    Object.assign(G, { runs: [], runId: null, predictions: null, metrics: null, running: null });
+    $('gemProgressWrap').classList.add('hidden');
+    $('gemRunField').classList.add('hidden');
+    $('gemStatus').textContent = 'Nenhuma execução ainda. O Gemini analisa as mesmas amostras e é comparado com o mesmo gabarito.';
+}
+
+async function loadGeminiRuns(selectId = null) {
+    if (!S.job) return;
+    G.runs = await req(`/api/tests/${S.job}/gemini`).catch(() => []);
+    const completed = G.runs.filter(r => r.status === 'completed');
+    const running = G.runs.find(r => r.status === 'running');
+    if (selectId && completed.some(r => r.id === selectId)) G.runId = selectId;
+    else if (!completed.some(r => r.id === G.runId)) G.runId = completed.length ? completed[0].id : null;
+
+    $('gemRunSelect').innerHTML = completed.map(r =>
+        `<option value="${esc(r.id)}">${esc(r.model)} · ${r.created_at ? new Date(r.created_at * 1000).toLocaleString('pt-BR') : r.id}</option>`).join('');
+    $('gemRunField').classList.toggle('hidden', completed.length < 2);
+    if (G.runId) $('gemRunSelect').value = G.runId;
+
+    const last = G.runs[0];
+    if (running) {
+        G.running = running.id;
+        $('gemProgressWrap').classList.remove('hidden');
+        pollGemini();
+    } else if (last && last.status !== 'completed' && !G.runId) {
+        $('gemStatus').innerHTML = `<span style="color:var(--red)">Última execução: ${esc(last.error || last.status)}</span>`;
+    } else if (G.runId) {
+        const run = completed.find(r => r.id === G.runId);
+        const lat = run && run.latencia_ms ? ` · ${num(run.latencia_ms.media / 1000, 2)} s por imagem` : '';
+        $('gemStatus').innerHTML = `Comparando com <b>${esc(run.model)}</b>${lat}. ` +
+            `<a href="#" id="gemShowImage">ver imagem enviada desta amostra</a> · <a href="#" id="gemDeleteRun">excluir execução</a>`;
+    }
+    await loadGeminiData();
+}
+
+async function loadGeminiData() {
+    if (!G.runId) {
+        G.predictions = null;
+        G.metrics = null;
+    } else {
+        [G.predictions, G.metrics] = await Promise.all([
+            req(`/api/tests/${S.job}/gemini/${G.runId}/predictions`).catch(() => null),
+            req(`/api/tests/${S.job}/gemini/${G.runId}/metrics`).catch(() => null),
+        ]);
+    }
+    if (A.lastMetrics) renderMetrics(A.lastMetrics);
+    renderSample();
+}
+
+async function refreshGeminiMetrics() {
+    G.metrics = await req(`/api/tests/${S.job}/gemini/${G.runId}/metrics`).catch(() => G.metrics);
+}
+
+$('gemRunSelect').addEventListener('change', async () => { G.runId = $('gemRunSelect').value; await loadGeminiRuns(G.runId); });
+
+$('gemStatus').addEventListener('click', async e => {
+    if (e.target.id === 'gemShowImage') {
+        e.preventDefault();
+        const s = sampleAt();
+        if (s) window.open(`${API()}/api/tests/${S.job}/gemini/${G.runId}/images/${String(s.sample).padStart(6, '0')}.jpg`, '_blank');
+    }
+    if (e.target.id === 'gemDeleteRun') {
+        e.preventDefault();
+        if (!confirm('Excluir esta execução do Gemini?')) return;
+        try {
+            await req(`/api/tests/${S.job}/gemini/${G.runId}`, { method: 'DELETE' });
+            G.runId = null;
+            resetGemini();
+            await loadGeminiRuns();
+            toast('Execução excluída.', 'ok');
+        } catch (error) { toast(error.message, 'error'); }
+    }
+});
+
+async function openGeminiModal() {
+    if (!G.config) G.config = await req('/api/gemini/config').catch(() => ({ default_prompt: '', default_max_width: 1600 }));
+    const saved = localStorage.getItem('exp:gemKey') || '';
+    $('gemKey').value = saved;
+    $('gemRemember').checked = !!saved;
+    $('gemKeyHint').textContent = G.config.has_env_key
+        ? 'A variável GEMINI_API_KEY está definida no servidor: pode deixar o campo vazio.'
+        : 'A chave não é gravada em nenhum arquivo do projeto.';
+    if (!$('gemPrompt').value) $('gemPrompt').value = localStorage.getItem('exp:gemPrompt') || G.config.default_prompt;
+    const lastModel = localStorage.getItem('exp:gemModel');
+    if (lastModel && !$('gemModel').querySelector(`option[value="${CSS.escape(lastModel)}"]`)) {
+        $('gemModel').insertAdjacentHTML('beforeend', `<option value="${esc(lastModel)}">${esc(lastModel)}</option>`);
+    }
+    if (lastModel) $('gemModel').value = lastModel;
+    $('gemEstimate').innerHTML = `Serão enviadas <b>${intBR(A.total)}</b> imagens (uma por amostra). ` +
+        'Com 2 a 6 s por resposta, conte com ' + fmtTime(A.total * 2) + ' a ' + fmtTime(A.total * 6) + ', mais as pausas.';
+    openModal('gemModal');
+}
+$('gemNew').onclick = openGeminiModal;
+$('gemResetPrompt').onclick = e => { e.preventDefault(); $('gemPrompt').value = G.config.default_prompt; };
+
+$('gemLoadModels').onclick = async () => {
+    const button = $('gemLoadModels');
+    button.disabled = true;
+    button.textContent = '...';
+    try {
+        const models = await postJSON('/api/gemini/models', { api_key: $('gemKey').value.trim() });
+        if (!models.length) throw new Error('Nenhum modelo com suporte a imagem encontrado nesta conta.');
+        const keep = $('gemModel').value;
+        $('gemModel').innerHTML = models.map(m =>
+            `<option value="${esc(m.name)}">${esc(m.display_name)} (${esc(m.name)})</option>`).join('');
+        $('gemModel').value = models.some(m => m.name === keep) ? keep : models[0].name;
+        toast(`${models.length} modelo(s) disponível(is).`, 'ok');
+    } catch (error) {
+        toast(error.message, 'error');
+    } finally {
+        button.disabled = false;
+        button.textContent = 'Carregar';
+    }
+};
+
+$('gemStart').onclick = async () => {
+    const key = $('gemKey').value.trim();
+    const model = $('gemModel').value;
+    if (!model) { toast('Carregue a lista e escolha um modelo.', 'error'); return; }
+    if (!$('gemPrompt').value.includes('{vagas}')) { toast('O prompt precisa conter {vagas}.', 'error'); return; }
+    if ($('gemRemember').checked && key) localStorage.setItem('exp:gemKey', key);
+    else localStorage.removeItem('exp:gemKey');
+    localStorage.setItem('exp:gemModel', model);
+    localStorage.setItem('exp:gemPrompt', $('gemPrompt').value);
+    try {
+        const data = await postJSON(`/api/tests/${S.job}/gemini`, {
+            api_key: key, model,
+            temperature: $('gemTemperature').value,
+            prompt: $('gemPrompt').value,
+            max_width: Number($('gemMaxWidth').value) || 1600,
+            pause_s: Number($('gemPause').value) || 0,
+        });
+        closeModal('gemModal');
+        G.running = data.id;
+        $('gemProgressWrap').classList.remove('hidden');
+        $('gemBar').style.width = '0%';
+        $('gemProgressText').textContent = 'Enviando a primeira imagem...';
+        pollGemini();
+    } catch (error) {
+        toast(error.message, 'error');
+    }
+};
+
+$('gemCancel').onclick = async () => {
+    if (!G.running || !confirm('Cancelar a execução do Gemini?')) return;
+    try { await postJSON(`/api/tests/${S.job}/gemini/${G.running}/cancel`, {}); } catch (error) { toast(error.message, 'error'); }
+};
+
+async function pollGemini() {
+    clearTimeout(G.polling);
+    if (!G.running || !S.job) return;
+    const job = S.job, id = G.running;
+    let st;
+    try { st = await req(`/api/tests/${job}/gemini/${id}`); }
+    catch (error) { G.polling = setTimeout(pollGemini, 3000); return; }
+    if (S.job !== job) return;
+    $('gemBar').style.width = (st.progress || 0) + '%';
+    if (st.status === 'running') {
+        $('gemProgressText').textContent = `${st.done || 0} de ${st.total || '?'} imagens analisadas`;
+        $('gemStatus').innerHTML = `Executando com ${esc(st.model)}...` + (st.note ? `<br><span style="color:var(--amber, #b45309)">${esc(st.note)}</span>` : '');
+        G.polling = setTimeout(pollGemini, 1500);
+        return;
+    }
+    G.running = null;
+    $('gemProgressWrap').classList.add('hidden');
+    if (st.status === 'completed') {
+        toast('Gemini concluído. As métricas já aparecem ao lado das do YOLO.', 'ok');
+        await loadGeminiRuns(id);
+    } else {
+        toast(st.status === 'cancelled' ? 'Execução do Gemini cancelada.' : 'Gemini: ' + (st.error || 'falha'), st.status === 'cancelled' ? '' : 'error');
+        await loadGeminiRuns();
+        $('gemStatus').innerHTML = `<span style="color:var(--red)">${esc(st.error || st.status)}</span>`;
+    }
 }
 
 /* ---------------------------------------------------------
@@ -1274,8 +1497,8 @@ document.addEventListener('keydown', e => {
         else if (e.key === 'Escape') { e.preventDefault(); if (E.current.length) { E.current = []; drawEditor(); } else closeEditor(); }
         return;
     }
-    if ($('historyModal').classList.contains('open')) {
-        if (e.key === 'Escape') closeModal('historyModal');
+    if ($('historyModal').classList.contains('open') || $('gemModal').classList.contains('open')) {
+        if (e.key === 'Escape') { closeModal('historyModal'); closeModal('gemModal'); }
         return;
     }
     if (S.step !== 4 || !S.job || typing) return;
