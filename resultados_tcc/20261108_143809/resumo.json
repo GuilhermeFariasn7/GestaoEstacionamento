@@ -1,0 +1,55 @@
+{
+  "testes": [
+    {
+      "id": "b5187d56ac2f",
+      "label": "teste001",
+      "camera": "Convencional"
+    },
+    {
+      "id": "817994f026c7",
+      "label": "exemplo1",
+      "camera": "Convencional"
+    },
+    {
+      "id": "1266ece602d9",
+      "label": "20260902_134304",
+      "camera": "Convencional"
+    }
+  ],
+  "consolidado": {
+    "tp": 166,
+    "fp": 20,
+    "tn": 10,
+    "fn": 76,
+    "total": 272,
+    "correct": 176,
+    "errors": 96,
+    "accuracy": 0.6471,
+    "precision": 0.8925,
+    "recall": 0.686,
+    "false_positive_rate": 0.6667,
+    "f1": 0.7757,
+    "precision_livre": 0.1163,
+    "recall_livre": 0.3333,
+    "false_positive_rate_livre": 0.314,
+    "f1_livre": 0.1724
+  },
+  "rocha_2025": {
+    "tp": 16141,
+    "fn": 2330,
+    "fp": 0,
+    "tn": 3561,
+    "total": 22032,
+    "correct": 19702,
+    "errors": 2330,
+    "accuracy": 0.8942,
+    "precision": 1.0,
+    "recall": 0.8739,
+    "false_positive_rate": 0.0,
+    "f1": 0.9327,
+    "precision_livre": 0.6045,
+    "recall_livre": 1.0,
+    "false_positive_rate_livre": 0.1261,
+    "f1_livre": 0.7535
+  }
+}

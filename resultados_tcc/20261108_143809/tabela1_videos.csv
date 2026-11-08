@@ -1,0 +1,4 @@
+﻿Vídeo;Câmera;Duração;Resolução;FPS;Vagas;Intervalo;Amostras;Observações;Critério;Estabilização;ID do teste
+teste001;Convencional;2min13s;1920x1080;30,01;8;5,0 s;27;216;sobreposição ≥ 15%;sim;b5187d56ac2f
+exemplo1;Convencional;0min14s;2560x1440;29,97;8;5,0 s;3;24;sobreposição ≥ 15%;não;817994f026c7
+20260902_134304;Convencional;0min57s;1920x1080;29,99;8;5,0 s;12;32;sobreposição ≥ 15%;sim;1266ece602d9

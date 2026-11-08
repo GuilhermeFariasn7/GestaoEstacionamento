@@ -259,6 +259,13 @@ class RegionCounterLive(BaseSolution):
                 frame_shape=im0.shape,
                 wrap_width=self.stabilizer.wrap_width
             )
+            # Se o estabilizador perdeu a cena (câmera foi para outro
+            # lugar), as vagas estão congeladas num ponto que não é mais o
+            # delas. Sem isto elas seriam avaliadas como livres/ocupadas
+            # sobre a imagem errada; assim ficam "fora de vista".
+            if self.stabilizer.lost:
+                for region in self.counting_regions:
+                    region["visible"] = False
         elif self._prepared_shape != im0.shape[:2]:
             self._prepare_regions(frame_shape=im0.shape)
             self._prepared_shape = im0.shape[:2]

@@ -41,6 +41,7 @@ import test_runner
 from camera_models import (
     clamp_fov,
     normalize_projection,
+    projection_conflict,
     regions_outside_lens,
 )
 
@@ -989,6 +990,12 @@ def save_test_environment(name):
                 "Se for uma câmera comum (CFTV, celular, vídeo gravado), escolha "
                 "“Convencional”."
             )}), 400
+    if detection.get("stabilize"):
+        conflict = projection_conflict(
+            detection["projection"], frame.shape[1], frame.shape[0]
+        )
+        if conflict:
+            return jsonify({"error": conflict[0].upper() + conflict[1:]}), 400
     clean["__detection__"] = detection
 
     success, encoded = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 95])

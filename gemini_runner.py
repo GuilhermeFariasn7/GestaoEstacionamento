@@ -49,6 +49,9 @@ MAX_ATTEMPTS = 8
 MAX_WAIT_S = 30.0
 RETRY_STATUS = {429, 500, 502, 503, 504}
 DEFAULT_MAX_WIDTH = 1600
+# Se tantas amostras SEGUIDAS falharem por erro temporário da API, o serviço está fora do ar:
+# a execução é interrompida (em vez de gastar minutos em cada amostra seguinte).
+MAX_CONSECUTIVE_FAILURES = 5
 
 OCCUPIED = "ocupada"
 FREE = "livre"
@@ -77,7 +80,13 @@ _runs_lock = threading.Lock()
 
 
 class GeminiError(RuntimeError):
-    pass
+    """transient=True: erro temporário da API (sobrecarga, limite, conexão) que já esgotou as
+    tentativas; a amostra é marcada como sem resposta e a execução continua. Erros de
+    configuração (chave, modelo inexistente, pedido inválido) e cancelamento interrompem tudo."""
+
+    def __init__(self, message, transient=False):
+        super().__init__(message)
+        self.transient = transient
 
 
 # ---------------------------------------------------------------------------
@@ -231,7 +240,8 @@ def classify_image(api_key, model, prompt, jpeg_bytes, region_names, temperature
                       on_wait, should_cancel)
                 wait_s = min(wait_s * 2, MAX_WAIT_S)
                 continue
-            raise GeminiError(f"Erro {error.code} da API: {message}")
+            raise GeminiError(f"Erro {error.code} da API: {message}",
+                              transient=error.code in RETRY_STATUS)
         except (urllib.error.URLError, TimeoutError) as error:
             print(f"[GEMINI] {model}: sem resposta após {time.perf_counter() - started:.1f} s -> "
                   f"{getattr(error, 'reason', error)}", flush=True)
@@ -241,7 +251,8 @@ def classify_image(api_key, model, prompt, jpeg_bytes, region_names, temperature
                       on_wait, should_cancel)
                 wait_s = min(wait_s * 2, MAX_WAIT_S)
                 continue
-            raise GeminiError(f"Falha de conexão com a API: {getattr(error, 'reason', error)}")
+            raise GeminiError(f"Falha de conexão com a API: {getattr(error, 'reason', error)}",
+                              transient=True)
 
     candidates = data.get("candidates") or []
     text = ""
@@ -437,6 +448,8 @@ def _run(run, job_dir, run_dir, api_key, model, temperature, prompt_template, ma
                       "tokens_saida", "status"] + list(region_names)
         latencies = []
         no_answer = 0
+        consecutive_failures = 0
+        failed_samples = []
         with open(os.path.join(run_dir, "predicoes.csv"), "w", newline="", encoding="utf-8") as csv_file, \
              open(os.path.join(run_dir, "respostas.jsonl"), "w", encoding="utf-8") as raw_file:
             writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
@@ -474,22 +487,44 @@ def _run(run, job_dir, run_dir, api_key, model, temperature, prompt_template, ma
                 if position == 0:
                     metadata["prompt_exemplo"] = prompt
                 if evaluable:
-                    states, info = classify_image(
-                        api_key, model, prompt, jpeg, evaluable, temperature,
-                        on_wait=lambda note: run.__setitem__("note", note),
-                        should_cancel=lambda: run["cancel"],
-                    )
-                    latencies.append(info["latency_ms"])
-                    out.update({
-                        "latencia_ms": round(info["latency_ms"], 1),
-                        "tentativas": info["attempts"],
-                        "tokens_entrada": info.get("prompt_tokens") or "",
-                        "tokens_saida": info.get("output_tokens") or "",
-                        "status": "erro_formato" if info.get("parse_error") else "ok",
-                    })
-                    raw_file.write(json.dumps({"sample": sample, "texto": info["raw_text"],
-                                               "finish_reason": info.get("finish_reason")},
-                                              ensure_ascii=False) + "\n")
+                    try:
+                        states, info = classify_image(
+                            api_key, model, prompt, jpeg, evaluable, temperature,
+                            on_wait=lambda note: run.__setitem__("note", note),
+                            should_cancel=lambda: run["cancel"],
+                        )
+                    except GeminiError as error:
+                        # Cancelamento ou erro de configuração (chave/modelo): interrompe tudo.
+                        if run["cancel"] or not error.transient:
+                            raise
+                        # Erro temporário que esgotou as tentativas: só esta amostra fica sem resposta.
+                        consecutive_failures += 1
+                        failed_samples.append({"sample": sample, "erro": str(error)})
+                        print(f"[GEMINI] Amostra {sample + 1} sem resposta ({error}); "
+                              f"seguindo para a próxima ({consecutive_failures} falha(s) seguida(s)).",
+                              flush=True)
+                        if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                            raise GeminiError(
+                                f"{consecutive_failures} amostras seguidas falharam por erro temporário da API "
+                                f"(último erro: {error}). O serviço parece indisponível; tente mais tarde "
+                                f"ou com outro modelo.")
+                        states = {}
+                        out.update({"tentativas": MAX_ATTEMPTS, "status": "erro_api"})
+                        raw_file.write(json.dumps({"sample": sample, "texto": "", "erro": str(error)},
+                                                  ensure_ascii=False) + "\n")
+                    else:
+                        consecutive_failures = 0
+                        latencies.append(info["latency_ms"])
+                        out.update({
+                            "latencia_ms": round(info["latency_ms"], 1),
+                            "tentativas": info["attempts"],
+                            "tokens_entrada": info.get("prompt_tokens") or "",
+                            "tokens_saida": info.get("output_tokens") or "",
+                            "status": "erro_formato" if info.get("parse_error") else "ok",
+                        })
+                        raw_file.write(json.dumps({"sample": sample, "texto": info["raw_text"],
+                                                   "finish_reason": info.get("finish_reason")},
+                                                  ensure_ascii=False) + "\n")
                 else:
                     states, out["status"] = {}, "sem_vagas_visiveis"
                 for name in region_names:
@@ -507,6 +542,7 @@ def _run(run, job_dir, run_dir, api_key, model, temperature, prompt_template, ma
         metadata["status"] = "completed"
         metadata["amostras"] = len(rows)
         metadata["respostas_ausentes"] = no_answer
+        metadata["amostras_com_falha_api"] = failed_samples
         metadata["latencia_ms"] = _stats(latencies)
         _write_json(os.path.join(run_dir, "metadata.json"), metadata)
         run["status"] = "completed"

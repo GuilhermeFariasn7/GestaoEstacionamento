@@ -1,0 +1,124 @@
+% Gerado por gerar_resultados_tcc.py em 20261108_143809
+% Requer \usepackage{graphicx} (resizebox). \legend é do abnTeX2.
+
+\begin{table}[htbp]
+\centering
+\caption{Características dos vídeos utilizados nos experimentos}
+\label{tab:videos}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lllllcccc}
+\hline
+Vídeo & Câmera & Duração & Resolução & FPS & Intervalo & Vagas & Amostras & Observações \\ \hline
+teste001 & Convencional & 2min13s & 1920x1080 & 30,01 & 5,0 s & 8 & 27 & 216 \\
+exemplo1 & Convencional & 0min14s & 2560x1440 & 29,97 & 5,0 s & 8 & 3 & 24 \\
+20260902\_134304 & Convencional & 0min57s & 1920x1080 & 29,99 & 5,0 s & 8 & 12 & 32 \\
+\hline
+\end{tabular}}
+\legend{Fonte: Do autor.}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Configuração computacional utilizada nos experimentos}
+\label{tab:ambiente}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{ll}
+\hline
+Item & Configuração \\ \hline
+Sistema operacional & Windows-11-10.0.26200-SP0 \\
+Processador & Intel64 Family 6 Model 154 Stepping 4, GenuineIntel \\
+Núcleos lógicos & 12 \\
+Memória RAM (GB) & 7.7 \\
+GPU & não utilizada (inferência em CPU) \\
+Python & 3.13.13 \\
+OpenCV & 4.11.0 \\
+Ultralytics & 8.3.133 \\
+PyTorch & 2.6.0+cpu \\
+Flask & 3.1.1 \\
+Flask-SocketIO & 5.5.1 \\
+\hline
+\end{tabular}}
+\legend{Fonte: Do autor.}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Resultados dos testes realizados com YOLO}
+\label{tab:resultados-yolo}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccccccc}
+\hline
+Vídeo & Am. & TP & TN & FP & FN & Acc. & Prec. & Rec. & FPR \\ \hline
+teste001 & 27 & 133 & 0 & 20 & 63 & 61,57\% & 86,93\% & 67,86\% & 100,00\% \\
+exemplo1 & 3 & 16 & 2 & 0 & 6 & 75,00\% & 100,00\% & 72,73\% & 0,00\% \\
+20260902\_134304 & 12 & 17 & 8 & 0 & 7 & 78,12\% & 100,00\% & 70,83\% & 0,00\% \\
+Consolidado & 42 & 166 & 10 & 20 & 76 & 64,71\% & 89,25\% & 68,60\% & 66,67\% \\
+\hline
+\end{tabular}}
+\legend{Fonte: Do autor.}
+\end{table}
+
+% Tabela 6 - matriz de confusão consolidada
+\begin{table}[htbp]
+\centering
+\caption{Matriz de confusão consolidada}
+\label{tab:matriz}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcc}
+\hline
+ & Predito: Ocupada & Predito: Livre \\ \hline
+Real: Ocupada & 166 & 76 \\
+Real: Livre & 20 & 10 \\
+\hline
+\end{tabular}}
+\legend{Fonte: Do autor.}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Comparação dos resultados com o trabalho de Rocha (2025)}
+\label{tab:comparacao-rocha}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccc}
+\hline
+Trabalho & Acurácia & Precisão & Recall & FPR & Precisão (livre) \\ \hline
+Rocha (2025) & 89,42\% & 100,00\% & 87,39\% & 0,00\% & 60,45\% \\
+Este trabalho & 64,71\% & 89,25\% & 68,60\% & 66,67\% & 11,63\% \\
+\hline
+\end{tabular}}
+\legend{Fonte: Do autor.}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Comparação entre YOLO e Gemini (mesmas observações)}
+\label{tab:yolo-gemini}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccc}
+\hline
+Abordagem & Acurácia & Precisão & Recall & FPR & Tempo/quadro \\ \hline
+YOLO & 64,71\% & 89,25\% & 68,60\% & 66,67\% & 1,462 s \\
+Gemini & 62,87\% & 92,73\% & 63,22\% & 40,00\% & 3,173 s \\
+\hline
+\end{tabular}}
+\legend{Fonte: Do autor.}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\caption{Configuração utilizada para os testes com Gemini}
+\label{tab:config-gemini}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{ll}
+\hline
+Parâmetro & Configuração \\ \hline
+Modelo & gemini-3.5-flash-lite \\
+Modo de utilização & Zero-shot \\
+Prompt & ver Apêndice (texto integral em tabela3\_config\_gemini.csv) \\
+Temperatura & padrão do modelo \\
+Método de acesso & API (REST, generateContent) \\
+Formato de resposta & JSON estruturado (vaga, ocupada) \\
+\hline
+\end{tabular}}
+\legend{Fonte: Do autor.}
+\end{table}

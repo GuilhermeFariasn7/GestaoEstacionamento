@@ -284,6 +284,36 @@ def regions_outside_lens(projection, width, height, fov, regions, tolerance=0.02
     return outside
 
 
+# Uma imagem equirretangular cobre 360° x 180°, então tem proporção 2:1
+# (3840x1920, 5760x2880...). Um vídeo 16:9 comum não pode ser equirretangular.
+EQUIRECTANGULAR_ASPECT_RANGE = (1.9, 2.1)
+
+
+def projection_conflict(projection, width, height):
+    """
+    Mensagem explicando por que a projeção escolhida não combina com a
+    resolução do vídeo, ou None se estiver coerente.
+
+    Escolher "360° equirretangular" para um vídeo de câmera comum faz o
+    estabilizador usar um modelo esférico que não existe nessa imagem, e as
+    vagas ficam deformadas/fora do lugar mesmo com a câmera parada.
+    """
+    if normalize_projection(projection) != PROJECTION_EQUIRECTANGULAR:
+        return None
+    if not width or not height:
+        return None
+    ratio = float(width) / float(height)
+    low, high = EQUIRECTANGULAR_ASPECT_RANGE
+    if low <= ratio <= high:
+        return None
+    return (
+        f"o tipo \u201c360\u00b0 equirretangular\u201d exige imagem 2:1, mas este "
+        f"v\u00eddeo tem {int(width)}\u00d7{int(height)} (propor\u00e7\u00e3o {ratio:.2f}:1). "
+        "Se for uma c\u00e2mera comum (CFTV, celular, v\u00eddeo gravado), escolha "
+        "\u201cConvencional\u201d."
+    )
+
+
 # ----------------------------------------------------------------------
 # Rotação 3D a partir de correspondências de raios
 # ----------------------------------------------------------------------

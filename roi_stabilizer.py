@@ -73,6 +73,7 @@ from camera_models import (
     PROJECTION_PERSPECTIVE,
     build_camera_model,
     normalize_projection,
+    projection_conflict,
     ransac_rotation,
     regions_outside_lens,
     rotation_angle_degrees,
@@ -129,6 +130,16 @@ DEFAULT_MASK_BOTTOM = 0.12
 MODE_REFERENCE = "referencia"
 MODE_CHAINED = "encadeado"
 MODE_HELD = "mantido"
+
+# Atualizações seguidas sem conseguir casar a cena (nem com a referência,
+# nem encadeando com o último quadro bom) até a posição das vagas deixar de
+# ser confiável. Uma ou duas falhas (borrão, reflexo) ainda são cobertas por
+# manter a última posição; a partir daqui a câmera provavelmente foi para
+# outro lugar (ronda de uma PTZ, por exemplo) e as vagas passam a "fora de
+# vista" em vez de seguir congeladas sobre um ponto errado e serem
+# classificadas como livres/ocupadas. No ritmo do protótipo (1 atualização
+# a cada 3 quadros) 4 atualizações são ~12 quadros, cerca de 0,4 s a 30 fps.
+LOST_AFTER_UPDATES = 4
 
 
 class RegionStabilizer:
@@ -563,6 +574,14 @@ class RegionStabilizer:
 
         return result
 
+    @property
+    def lost(self):
+        """
+        True quando o estabilizador não encontra mais a cena há tempo demais
+        para a posição das vagas ser confiável (ver LOST_AFTER_UPDATES).
+        """
+        return self.frames_without_tracking >= LOST_AFTER_UPDATES
+
     def _motion_magnitude(self):
         if self._transform is None:
             return 0.0
@@ -581,6 +600,7 @@ class RegionStabilizer:
             "inliers": self.last_inlier_count,
             "motion": self.motion_magnitude,
             "frames_without_tracking": self.frames_without_tracking,
+            "lost": self.lost,
         }
 
 
@@ -649,6 +669,16 @@ def build_stabilizer_for_environment(environment_name, coordinates, enabled=None
             f"'{normalize_projection(projection)}' (FOV {fov}). A projeção "
             "foi ignorada e o modelo convencional (homografia) será usado. "
             "Corrija o tipo de câmera no editor de vagas."
+        )
+        projection = PROJECTION_PERSPECTIVE
+        fov = None
+
+    conflict = projection_conflict(projection, ref_w, ref_h)
+    if conflict:
+        log(
+            f"[ESTABILIZAÇÃO] ATENÇÃO: em '{environment_name}' {conflict} "
+            "A projeção foi ignorada e o modelo convencional (homografia) "
+            "será usado."
         )
         projection = PROJECTION_PERSPECTIVE
         fov = None

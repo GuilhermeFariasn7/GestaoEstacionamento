@@ -1,0 +1,16 @@
+﻿Vídeo;Execução;Modelo;Modo de utilização;Método de acesso;Temperatura;Largura máx. da imagem (px);Formato de resposta;Sem resposta (observações);Prompt
+teste001;20261108_141930_dfa7;gemini-3.5-flash-lite;zero-shot;API REST generateContent (v1beta);padrão do modelo;1600;JSON (responseSchema): {vagas: [{vaga, ocupada}]};0;"Você está analisando uma imagem de uma câmera de monitoramento de um estacionamento.
+As vagas que devem ser avaliadas estão contornadas por polígonos coloridos e identificadas por um rótulo escrito sobre cada uma: {vagas}.
+Para cada vaga, informe se ela está OCUPADA (existe um veículo estacionado dentro do contorno, mesmo que só parte dele esteja visível ou que esteja parcialmente encoberto) ou LIVRE (não há veículo ocupando a vaga).
+Considere apenas a área dentro de cada contorno. Veículos apenas passando pela via, fora dos contornos, não ocupam a vaga.
+Responda somente com o JSON solicitado, com exatamente uma entrada para cada vaga listada."
+exemplo1;20261108_143153_eef0;gemini-3.5-flash-lite;zero-shot;API REST generateContent (v1beta);padrão do modelo;1600;JSON (responseSchema): {vagas: [{vaga, ocupada}]};0;"Você está analisando uma imagem de uma câmera de monitoramento de um estacionamento.
+As vagas que devem ser avaliadas estão contornadas por polígonos coloridos e identificadas por um rótulo escrito sobre cada uma: {vagas}.
+Para cada vaga, informe se ela está OCUPADA (existe um veículo estacionado dentro do contorno, mesmo que só parte dele esteja visível ou que esteja parcialmente encoberto) ou LIVRE (não há veículo ocupando a vaga).
+Considere apenas a área dentro de cada contorno. Veículos apenas passando pela via, fora dos contornos, não ocupam a vaga.
+Responda somente com o JSON solicitado, com exatamente uma entrada para cada vaga listada."
+20260902_134304;20261108_125504_deaa;gemini-3.5-flash-lite;zero-shot;API REST generateContent (v1beta);padrão do modelo;1600;JSON (responseSchema): {vagas: [{vaga, ocupada}]};0;"Você está analisando uma imagem de uma câmera de monitoramento de um estacionamento.
+As vagas que devem ser avaliadas estão contornadas por polígonos coloridos e identificadas por um rótulo escrito sobre cada uma: {vagas}.
+Para cada vaga, informe se ela está OCUPADA (existe um veículo estacionado dentro do contorno, mesmo que só parte dele esteja visível ou que esteja parcialmente encoberto) ou LIVRE (não há veículo ocupando a vaga).
+Considere apenas a área dentro de cada contorno. Veículos apenas passando pela via, fora dos contornos, não ocupam a vaga.
+Responda somente com o JSON solicitado, com exatamente uma entrada para cada vaga listada."

@@ -1,0 +1,12 @@
+﻿Item;Configuração
+Sistema operacional;Windows-11-10.0.26200-SP0
+Processador;Intel64 Family 6 Model 154 Stepping 4, GenuineIntel
+Núcleos lógicos;12
+Memória RAM (GB);7.7
+GPU;não utilizada (inferência em CPU)
+Python;3.13.13
+OpenCV;4.11.0
+Ultralytics;8.3.133
+PyTorch;2.6.0+cpu
+Flask;3.1.1
+Flask-SocketIO;5.5.1
